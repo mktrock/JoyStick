@@ -18,6 +18,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 環境は `m5stick-c` の1つだけ。StickC Plus も `m5stick-c` のボード定義で動く。
 
+## Fusion アドイン
+
+`fusion/JoyOrbit/` はシリアルの `x,y,sw` を読んで Fusion のビューを動かすアドイン。SW の短押し(離したとき)でオービット ⇔ パンとモードが切り替わり、長押しでホームビューに戻る。押下中はビューを動かさない(モードはアドインが持ち、`M:<mode>\n` を本体に送って LCD 右上に表示させる。`M:` で表示を消す)。Fusion 内蔵 Python には pyserial がないので `lib/` に同梱している。シリアル読み取りは別スレッドで行い、カメラ操作は `fireCustomEvent` でメインスレッドに渡して実行する(Fusion API はメインスレッド以外から呼べない)。
+
 ## ハードウェアの制約
 
 - 配線: X→G33、Y→G32(Grove ポート)、SW→G26(`INPUT_PULLDOWN`。このモジュールは押下で HIGH を出すので、`readSW()` で反転して CSV の sw は押下で 0 にしている)、VCC→**3V3**。

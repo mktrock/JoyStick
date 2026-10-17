@@ -13,6 +13,24 @@ M5Canvas canvas(&M5.Display);
 int centerX = 2048;
 int centerY = 2048;
 
+// Current JoyOrbit mode, sent by the add-in as "M:<mode>\n" ("M:" = add-in stopped).
+// The device only displays it; JoyOrbit owns the mode state.
+String hostMode;
+
+static void pollHost() {
+  static String line;
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n') {
+      line.trim();
+      if (line.startsWith("M:")) hostMode = line.substring(2);
+      line = "";
+    } else if (line.length() < 32) {
+      line += c;
+    }
+  }
+}
+
 constexpr int PIN_X  = 33;
 constexpr int PIN_Y  = 32;
 constexpr int PIN_SW = 26;
@@ -60,6 +78,7 @@ void loop() {
   int x, y;
   readXY(x, y);
   int sw = readSW();
+  pollHost();
 
   int dx = x - centerX;
   int dy = y - centerY;
@@ -79,6 +98,16 @@ void loop() {
   canvas.setCursor(4, 44);
   canvas.setTextColor(sw == LOW ? TFT_RED : TFT_GREEN);
   canvas.print(sw == LOW ? "SW: PRESSED" : "SW: ----");
+
+  // JoyOrbit mode (top right)
+  if (hostMode.length()) {
+    String label = hostMode;
+    label.toUpperCase();
+    canvas.setTextColor(hostMode == "pan" ? TFT_YELLOW : TFT_CYAN);
+    canvas.setTextDatum(top_right);
+    canvas.drawString(label, w - 4, 4);
+    canvas.setTextDatum(top_left);
+  }
 
   // Battery (AXP192 is polled once per second)
   static uint32_t lastBatMs = 0;

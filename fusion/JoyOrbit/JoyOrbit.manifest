@@ -1,0 +1,13 @@
+{
+  "autodeskProduct": "Fusion",
+  "type": "addin",
+  "id": "8f2b6c1e-4d7a-4b3e-9a51-3c0e7f2d9b64",
+  "author": "mkt",
+  "description": {
+    "": "M5StickC Plus (x,y,sw CSV over USB serial) で視点をオービット/パンする"
+  },
+  "version": "1.0.0",
+  "runOnStartup": false,
+  "supportedOS": "windows|mac",
+  "editEnabled": true
+}
