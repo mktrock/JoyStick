@@ -9,23 +9,31 @@
 
 #include <M5Unified.h>
 
-constexpr int PIN_X  = 33;
-constexpr int PIN_Y  = 32;
-constexpr int PIN_SW = 26;
-
 M5Canvas canvas(&M5.Display);
 int centerX = 2048;
 int centerY = 2048;
 
-static int readAvg(int pin, int samples = 8) {
+constexpr int PIN_X  = 33;
+constexpr int PIN_Y  = 32;
+constexpr int PIN_SW = 26;
+
+static int readAvg(int pin, int samples) {
   long sum = 0;
   for (int i = 0; i < samples; i++) sum += analogRead(pin);
   return sum / samples;
 }
 
+static void readXY(int& x, int& y, int samples = 8) {
+  x = readAvg(PIN_X, samples);
+  y = readAvg(PIN_Y, samples);
+}
+
+// The module drives SW HIGH while pressed (LOW at rest). Invert it so the
+// CSV keeps the KS0008 sample-sketch convention: sw = 0 while pressed.
+static int readSW() { return digitalRead(PIN_SW) == HIGH ? LOW : HIGH; }
+
 static void calibrate() {
-  centerX = readAvg(PIN_X, 32);
-  centerY = readAvg(PIN_Y, 32);
+  readXY(centerX, centerY, 32);
   Serial.printf("# calibrated center: x=%d y=%d\n", centerX, centerY);
 }
 
@@ -37,7 +45,7 @@ void setup() {
   M5.Display.setRotation(1);
   canvas.createSprite(M5.Display.width(), M5.Display.height());
 
-  pinMode(PIN_SW, INPUT_PULLUP);
+  pinMode(PIN_SW, INPUT_PULLDOWN);
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);  // 0-3.3V -> 0-4095
 
@@ -49,9 +57,10 @@ void loop() {
   M5.update();
   if (M5.BtnA.wasPressed()) calibrate();
 
-  int x = readAvg(PIN_X);
-  int y = readAvg(PIN_Y);
-  int sw = digitalRead(PIN_SW);  // pressed = LOW
+  int x, y;
+  readXY(x, y);
+  int sw = readSW();
+
   int dx = x - centerX;
   int dy = y - centerY;
 

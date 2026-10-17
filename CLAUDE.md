@@ -20,7 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ハードウェアの制約
 
-- 配線: X→G33、Y→G32(Grove ポート)、SW→G26(`INPUT_PULLUP`、押下で LOW)、VCC→**3V3**。
+- 配線: X→G33、Y→G32(Grove ポート)、SW→G26(`INPUT_PULLDOWN`。このモジュールは押下で HIGH を出すので、`readSW()` で反転して CSV の sw は押下で 0 にしている)、VCC→**3V3**。
 - ジョイスティックを 5V で給電しないこと。アナログ出力が 3.3V を超え、ESP32 の ADC の上限を超えてしまう。
 - アナログ入力は ADC1 のピン(G32/G33/G36)だけを使うこと。ADC2 のピンは WiFi 使用中に読めない。
 - G0 はブート用のピンなので使わない。
