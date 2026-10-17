@@ -11,6 +11,10 @@ M5StickC Plus に Keyestudio KS0008 ジョイスティックモジュールを�
 | Grove⇔ジャンパー変換ケーブル | 本体下の Grove ポートにつなぐため |
 | ジャンパー線(メス) | 本体上の端子列にそのまま差せる |
 
+## 実体配線図
+
+![実体配線図](docs/wiring.svg)
+
 ## 接続表
 
 ![KS0008 ジョイスティックモジュール](docs/ks0008-joystick.jpg)
