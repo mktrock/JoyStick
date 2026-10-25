@@ -1,154 +1,136 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 780" width="960" height="780" font-family="'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif">
-  <rect width="960" height="780" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540" width="900" height="540" font-family="'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif">
+  <rect width="900" height="540" fill="#ffffff"/>
 
   <text x="24" y="36" font-size="22" font-weight="bold" fill="#222">JoyStick 実体配線図</text>
-  <text x="24" y="58" font-size="13" fill="#555">M5StickC Plus × Keyestudio KS0008</text>
+  <text x="24" y="58" font-size="13" fill="#555">Seeed Studio XIAO ESP32C3 × Keyestudio KS0008</text>
 
-  <!-- ===== M5StickC Plus(背面・ラベル側) ===== -->
-  <rect x="180" y="150" width="220" height="460" rx="24" fill="#f26a2e" stroke="#9c3d14" stroke-width="2"/>
-  <rect x="192" y="156" width="196" height="440" rx="14" fill="#ffffff"/>
+  <!-- ===== KS0008(ピンが右を向く向き。上から Y / X / B / V / G) ===== -->
+  <rect x="40" y="200" width="230" height="230" rx="14" fill="#1b1b1b" stroke="#000" stroke-width="2"/>
+  <circle cx="64" cy="224" r="10" fill="#fff" stroke="#c9a400" stroke-width="3"/>
+  <circle cx="64" cy="406" r="10" fill="#fff" stroke="#c9a400" stroke-width="3"/>
+  <circle cx="145" cy="315" r="80" fill="#2a2a2a" stroke="#000" stroke-width="3"/>
+  <circle cx="145" cy="315" r="58" fill="#333" stroke="#222" stroke-width="2"/>
+  <circle cx="145" cy="315" r="28" fill="#3b3b3b"/>
 
-  <!-- 上の端子列(メスヘッダ) -->
-  <g>
-    <rect x="186" y="142" width="208" height="14" rx="3" fill="#222"/>
-    <rect x="198.5" y="145" width="8" height="8" fill="#555"/>
-    <rect x="223.5" y="145" width="8" height="8" fill="#555"/>
-    <rect x="248.5" y="145" width="8" height="8" fill="#555"/>
-    <rect x="273.5" y="145" width="8" height="8" fill="#555"/>
-    <rect x="298.5" y="145" width="8" height="8" fill="#555"/>
-    <rect x="323.5" y="145" width="8" height="8" fill="#555"/>
-    <rect x="348.5" y="145" width="8" height="8" fill="#555"/>
-    <rect x="373.5" y="145" width="8" height="8" fill="#555"/>
-  </g>
-
-  <!-- 端子ラベル(本体ラベルと同じ配色) -->
-  <g font-size="13" font-weight="bold" text-anchor="middle" dominant-baseline="central">
-    <rect x="190.5" y="160" width="24" height="70" fill="#111"/>
-    <text transform="translate(202.5,195) rotate(-90)" fill="#fff">GND</text>
-    <rect x="215.5" y="160" width="24" height="70" fill="#d9441c"/>
-    <text transform="translate(227.5,195) rotate(-90)" fill="#fff">5V↑</text>
-    <rect x="240.5" y="160" width="24" height="70" fill="#dedede"/>
-    <text transform="translate(252.5,195) rotate(-90)" fill="#111">G26</text>
-    <rect x="265.5" y="160" width="24" height="70" fill="#c8c8c8"/>
-    <text transform="translate(277.5,195) rotate(-90)" fill="#111" font-size="11">G36/G25</text>
-    <rect x="290.5" y="160" width="24" height="70" fill="#dedede"/>
-    <text transform="translate(302.5,195) rotate(-90)" fill="#111">G0</text>
-    <rect x="315.5" y="160" width="24" height="70" fill="#f47a6b"/>
-    <text transform="translate(327.5,195) rotate(-90)" fill="#fff">BAT</text>
-    <rect x="340.5" y="160" width="24" height="70" fill="#f5c400"/>
-    <text transform="translate(352.5,195) rotate(-90)" fill="#111">3V3</text>
-    <rect x="365.5" y="160" width="24" height="70" fill="#d9441c"/>
-    <text transform="translate(377.5,195) rotate(-90)" fill="#fff">5V↓</text>
-  </g>
-
-  <g text-anchor="middle" fill="#333">
-    <text x="290" y="330" font-size="24" font-weight="bold" fill="#d9441c">M5StickC</text>
-    <text x="290" y="358" font-size="24" font-weight="bold" fill="#1f6fd1">Plus</text>
-    <text x="290" y="395" font-size="13">背面(ラベル側)から見た図</text>
-    <text x="290" y="545" font-size="11" fill="#666">HY2.0-4P(Grove)</text>
-  </g>
-
-  <!-- Grove ラベル -->
-  <g font-size="11" font-weight="bold" text-anchor="middle" dominant-baseline="central">
-    <rect x="240.5" y="556" width="24" height="34" fill="#111"/>
-    <text x="252.5" y="573" fill="#fff">G</text>
-    <rect x="265.5" y="556" width="24" height="34" fill="#d9441c"/>
-    <text x="277.5" y="573" fill="#fff">V</text>
-    <rect x="290.5" y="556" width="24" height="34" fill="#f5c400"/>
-    <text transform="translate(302.5,573) rotate(-90)" fill="#111">G32</text>
-    <rect x="315.5" y="556" width="24" height="34" fill="#f2f2f2" stroke="#bbb"/>
-    <text transform="translate(327.5,573) rotate(-90)" fill="#111">G33</text>
-  </g>
-
-  <!-- Grove ポートとプラグ -->
-  <rect x="236" y="606" width="108" height="10" fill="#ddd" stroke="#888"/>
-  <rect x="240" y="612" width="100" height="22" rx="3" fill="#f7f7f7" stroke="#777" stroke-width="1.5"/>
-
-  <!-- ===== KS0008(ピンが左を向くよう 180° 回転して描画) ===== -->
-  <rect x="640" y="230" width="260" height="250" rx="14" fill="#1b1b1b" stroke="#000" stroke-width="2"/>
-  <circle cx="666" cy="254" r="10" fill="#fff" stroke="#c9a400" stroke-width="3"/>
-  <circle cx="666" cy="456" r="10" fill="#fff" stroke="#c9a400" stroke-width="3"/>
-  <circle cx="800" cy="355" r="86" fill="#2a2a2a" stroke="#000" stroke-width="3"/>
-  <circle cx="800" cy="355" r="62" fill="#333" stroke="#222" stroke-width="2"/>
-  <circle cx="800" cy="355" r="30" fill="#3b3b3b"/>
-  <text x="800" y="460" font-size="12" fill="#e8d36a" text-anchor="middle">keyestudio  joystick</text>
-
-  <!-- ピン(上から G / V / B / X / Y) -->
-  <g fill="#c9c9c9" stroke="#888">
-    <rect x="588" y="297" width="56" height="6"/>
-    <rect x="588" y="325" width="56" height="6"/>
-    <rect x="588" y="353" width="56" height="6"/>
-    <rect x="588" y="381" width="56" height="6"/>
-    <rect x="588" y="409" width="56" height="6"/>
-  </g>
   <g fill="#e8c600">
-    <rect x="644" y="292" width="12" height="16" rx="2"/>
-    <rect x="644" y="320" width="12" height="16" rx="2"/>
-    <rect x="644" y="348" width="12" height="16" rx="2"/>
-    <rect x="644" y="376" width="12" height="16" rx="2"/>
-    <rect x="644" y="404" width="12" height="16" rx="2"/>
+    <rect x="258" y="252.5" width="12" height="16" rx="2"/>
+    <rect x="258" y="283" width="12" height="16" rx="2"/>
+    <rect x="258" y="313.5" width="12" height="16" rx="2"/>
+    <rect x="258" y="344" width="12" height="16" rx="2"/>
+    <rect x="258" y="374.5" width="12" height="16" rx="2"/>
   </g>
-  <g font-size="14" font-weight="bold" fill="#e8d36a" dominant-baseline="central">
-    <text x="664" y="300">G</text>
-    <text x="664" y="328">V</text>
-    <text x="664" y="356">B</text>
-    <text x="664" y="384">X</text>
-    <text x="664" y="412">Y</text>
+  <g fill="#c9c9c9" stroke="#888">
+    <rect x="270" y="257.5" width="40" height="6"/>
+    <rect x="270" y="288" width="40" height="6"/>
+    <rect x="270" y="318.5" width="40" height="6"/>
+    <rect x="270" y="349" width="40" height="6"/>
+    <rect x="270" y="379.5" width="40" height="6"/>
   </g>
-  <text x="770" y="505" font-size="15" font-weight="bold" fill="#222" text-anchor="middle">KS0008 ジョイスティック</text>
-  <text x="770" y="525" font-size="12" fill="#666" text-anchor="middle">(ピンが左を向くよう 180° 回して描画)</text>
+  <g font-size="14" font-weight="bold" fill="#e8d36a" dominant-baseline="central" text-anchor="end">
+    <text x="252" y="260.5">Y</text>
+    <text x="252" y="291">X</text>
+    <text x="252" y="321.5">B</text>
+    <text x="252" y="352">V</text>
+    <text x="252" y="382.5">G</text>
+  </g>
+  <text x="155" y="460" font-size="15" font-weight="bold" fill="#222" text-anchor="middle">KS0008 ジョイスティック</text>
+
+  <!-- ===== XIAO ESP32C3(部品面、USB-C が上) ===== -->
+  <rect x="495" y="178" width="80" height="36" rx="8" fill="#c8ccd0" stroke="#7a8086" stroke-width="2"/>
+  <text x="535" y="170" font-size="12" fill="#555" text-anchor="middle">USB-C</text>
+
+  <rect x="430" y="200" width="210" height="252" rx="10" fill="#2b2b2b" stroke="#000" stroke-width="2"/>
+  <rect x="495" y="198" width="80" height="16" fill="#c8ccd0" stroke="#7a8086" stroke-width="2"/>
+
+  <!-- BOOT / RESET ボタン(基板の下側。左下が B、右下が R) -->
+  <g>
+    <rect x="474" y="426" width="20" height="14" rx="2" fill="#ddd" stroke="#888"/>
+    <circle cx="484" cy="433" r="4" fill="#999"/>
+    <rect x="576" y="426" width="20" height="14" rx="2" fill="#ddd" stroke="#888"/>
+    <circle cx="586" cy="433" r="4" fill="#999"/>
+  </g>
+  <g font-size="12" font-weight="bold" fill="#222" text-anchor="middle" dominant-baseline="central">
+    <text x="484" y="467">BOOT</text>
+    <text x="586" y="467">RESET</text>
+  </g>
+
+  <!-- シールド -->
+  <rect x="478" y="290" width="114" height="110" rx="4" fill="#c0c4c8" stroke="#8a9096" stroke-width="2"/>
+  <text x="535" y="338" font-size="16" font-weight="bold" fill="#333" text-anchor="middle">XIAO</text>
+  <text x="535" y="360" font-size="14" font-weight="bold" fill="#333" text-anchor="middle">ESP32C3</text>
+
+  <!-- パッド(左 D0–D6、右 5V / GND / 3V3 / D10–D7) -->
+  <g fill="#d4a017">
+    <rect x="430" y="221" width="14" height="18" rx="3"/>
+    <rect x="430" y="251.5" width="14" height="18" rx="3"/>
+    <rect x="430" y="282" width="14" height="18" rx="3"/>
+    <rect x="430" y="312.5" width="14" height="18" rx="3"/>
+    <rect x="430" y="343" width="14" height="18" rx="3"/>
+    <rect x="430" y="373.5" width="14" height="18" rx="3"/>
+    <rect x="430" y="404" width="14" height="18" rx="3"/>
+    <rect x="626" y="221" width="14" height="18" rx="3"/>
+    <rect x="626" y="251.5" width="14" height="18" rx="3"/>
+    <rect x="626" y="282" width="14" height="18" rx="3"/>
+    <rect x="626" y="312.5" width="14" height="18" rx="3"/>
+    <rect x="626" y="343" width="14" height="18" rx="3"/>
+    <rect x="626" y="373.5" width="14" height="18" rx="3"/>
+    <rect x="626" y="404" width="14" height="18" rx="3"/>
+  </g>
+  <g font-size="13" dominant-baseline="central" fill="#888">
+    <text x="450" y="230">D0</text>
+    <text x="450" y="260.5" fill="#fff" font-weight="bold">D1</text>
+    <text x="450" y="291" fill="#fff" font-weight="bold">D2</text>
+    <text x="450" y="321.5" fill="#fff" font-weight="bold">D3</text>
+    <text x="450" y="352">D4</text>
+    <text x="450" y="382.5">D5</text>
+    <text x="450" y="413">D6</text>
+  </g>
+  <g font-size="13" dominant-baseline="central" fill="#888" text-anchor="end">
+    <text x="620" y="230">5V</text>
+    <text x="620" y="260.5" fill="#fff" font-weight="bold">GND</text>
+    <text x="620" y="291" fill="#f5c400" font-weight="bold">3V3</text>
+    <text x="620" y="321.5">D10</text>
+    <text x="620" y="352">D9</text>
+    <text x="620" y="382.5">D8</text>
+    <text x="620" y="413">D7</text>
+  </g>
 
   <!-- ===== 配線 ===== -->
   <g fill="none" stroke-linejoin="round" stroke-linecap="round">
     <!-- 縁取り -->
     <g stroke="#333" stroke-width="8">
-      <path d="M 572 300 H 555 V 66 H 202.5 V 128"/>
-      <path d="M 572 328 H 530 V 90 H 352.5 V 128"/>
-      <path d="M 572 356 H 505 V 114 H 359.5 A 7 7 0 0 0 345.5 114 H 252.5 V 128"/>
-      <path d="M 572 384 H 470 V 680 H 327.5 V 634"/>
-      <path d="M 572 412 H 490 V 705 H 302.5 V 634"/>
-      <path d="M 252.5 634 V 660"/>
-      <path d="M 277.5 634 V 660"/>
+      <path d="M 310 260.5 H 420"/>
+      <path d="M 310 291 H 420"/>
+      <path d="M 310 321.5 H 420"/>
+      <path d="M 310 352 H 360 V 490 H 680 V 291 H 650"/>
+      <path d="M 310 382.5 H 340 V 515 H 710 V 260.5 H 650"/>
     </g>
-    <path d="M 572 300 H 555 V 66 H 202.5 V 128" stroke="#1a1a1a" stroke-width="5"/>
-    <path d="M 572 328 H 530 V 90 H 352.5 V 128" stroke="#e53935" stroke-width="5"/>
-    <path d="M 572 356 H 505 V 114 H 359.5 A 7 7 0 0 0 345.5 114 H 252.5 V 128" stroke="#2e9e4f" stroke-width="5"/>
-    <path d="M 572 384 H 470 V 680 H 327.5 V 634" stroke="#f4f4f4" stroke-width="5"/>
-    <path d="M 572 412 H 490 V 705 H 302.5 V 634" stroke="#f5c400" stroke-width="5"/>
-    <path d="M 252.5 634 V 660" stroke="#1a1a1a" stroke-width="5"/>
-    <path d="M 277.5 634 V 660" stroke="#e53935" stroke-width="5"/>
+    <path d="M 310 260.5 H 420" stroke="#f5c400" stroke-width="5"/>
+    <path d="M 310 291 H 420" stroke="#f4f4f4" stroke-width="5"/>
+    <path d="M 310 321.5 H 420" stroke="#2e9e4f" stroke-width="5"/>
+    <path d="M 310 352 H 360 V 490 H 680 V 291 H 650" stroke="#e53935" stroke-width="5"/>
+    <path d="M 310 382.5 H 340 V 515 H 710 V 260.5 H 650" stroke="#1a1a1a" stroke-width="5"/>
   </g>
 
-  <!-- ジャンパーのハウジング(KS0008 側) -->
+  <!-- ジャンパーのハウジング -->
   <g fill="#111">
-    <rect x="566" y="293" width="26" height="14" rx="2"/>
-    <rect x="566" y="321" width="26" height="14" rx="2"/>
-    <rect x="566" y="349" width="26" height="14" rx="2"/>
-    <rect x="566" y="377" width="26" height="14" rx="2"/>
-    <rect x="566" y="405" width="26" height="14" rx="2"/>
+    <rect x="296" y="253.5" width="26" height="14" rx="2"/>
+    <rect x="296" y="284" width="26" height="14" rx="2"/>
+    <rect x="296" y="314.5" width="26" height="14" rx="2"/>
+    <rect x="296" y="345" width="26" height="14" rx="2"/>
+    <rect x="296" y="375.5" width="26" height="14" rx="2"/>
+    <rect x="410" y="253.5" width="22" height="14" rx="2"/>
+    <rect x="410" y="284" width="22" height="14" rx="2"/>
+    <rect x="410" y="314.5" width="22" height="14" rx="2"/>
+    <rect x="638" y="253.5" width="22" height="14" rx="2"/>
+    <rect x="638" y="284" width="22" height="14" rx="2"/>
   </g>
-  <!-- ジャンパーのハウジング(M5 端子列側) -->
-  <g fill="#111">
-    <rect x="196.5" y="122" width="12" height="22" rx="2"/>
-    <rect x="246.5" y="122" width="12" height="22" rx="2"/>
-    <rect x="346.5" y="122" width="12" height="22" rx="2"/>
-  </g>
-  <!-- Grove 側の未使用線の先端 -->
-  <rect x="247" y="656" width="11" height="16" rx="2" fill="#111"/>
-  <rect x="270" y="654" width="15" height="20" rx="2" fill="#9bb7d4" stroke="#5f7d9c"/>
 
   <!-- 配線ラベル -->
-  <g font-size="13" font-weight="bold" fill="#222">
-    <text x="410" y="60">G → GND</text>
-    <text x="410" y="84" fill="#c62828">V → 3V3</text>
-    <text x="400" y="108" fill="#1e7a3a">B → G26</text>
-    <text x="360" y="674">X → G33(白)</text>
-    <text x="360" y="722" fill="#8a6d00">Y → G32(黄)</text>
+  <g font-size="12" font-weight="bold">
+    <text x="334" y="250" fill="#8a6d00">Y → D1</text>
+    <text x="334" y="281" fill="#222">X → D2</text>
+    <text x="334" y="311" fill="#1e7a3a">B → D3</text>
   </g>
-  <g font-size="12" fill="#444" text-anchor="end">
-    <text x="238" y="668">黒 GND:未使用</text>
-    <text x="238" y="690">赤 5V:絶縁して未使用</text>
-  </g>
-  <text x="290" y="748" font-size="12" fill="#666" text-anchor="middle">Grove⇔ジャンパー変換ケーブル</text>
 
 </svg>

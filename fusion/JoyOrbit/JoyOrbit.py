@@ -1,12 +1,14 @@
 # JoyOrbit: Fusion add-in that orbits/pans the active viewport from an
-# M5StickC Plus running this repo's firmware (x,y,sw CSV, 115200bps, USB serial).
+# XIAO ESP32C3 running this repo's firmware (x,y,sw CSV, 115200bps, USB serial).
+# Without USB it connects over BLE instead (Nordic UART Service, same lines).
 #
 #   stick              -> move the view in the current mode
 #   sw short press     -> toggle mode: orbit <-> pan (on release)
 #   sw long press      -> home view (fires once while still held)
 #                         (sw = stick push; the view doesn't move while it's held)
-#   BtnA on the device -> re-center (the "# calibrated center" line is picked up)
+#   BOOT on the device -> re-center (the "# calibrated center" line is picked up)
 
+import asyncio
 import json
 import os
 import sys
@@ -19,11 +21,20 @@ import adsk.core
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib'))
 import serial  # noqa: E402  (bundled pyserial in ./lib)
 import serial.tools.list_ports  # noqa: E402
+try:
+    from bleak import BleakClient, BleakScanner  # noqa: E402  (bundled bleak in ./lib)
+    BLE_IMPORT_ERROR = None
+except Exception as e:  # BLE is optional; USB still works
+    BleakClient = BleakScanner = None
+    BLE_IMPORT_ERROR = e
 
 # ---- settings ---------------------------------------------------------------
 PORT = None                 # e.g. 'COM5'; None = auto-detect
 BAUD = 115200
-USB_VIDS = (0x0403, 0x1A86, 0x10C4)  # FTDI (StickC Plus), CH9102 (Plus2), CP210x
+USB_VIDS = (0x303A,)        # Espressif USB Serial/JTAG (XIAO ESP32C3)
+USE_BLE = True              # fall back to BLE when no USB port is found
+BLE_NAME = 'JoyStick-XIAO'
+BLE_SCAN_SEC = 5.0          # scan this long per attempt
 DEADZONE = 250              # raw counts around center (0-4095 scale) that are ignored
 ORBIT_DEG_PER_SEC = 90.0    # orbit speed at full deflection
 PAN_PER_SEC = 0.3          # pan speed at full deflection, x eye-target distance
@@ -35,6 +46,9 @@ LONG_PRESS_SEC = 0.8        # hold sw this long to go to the home view
 
 EVENT_ID = 'JoyOrbitInput'
 MODES = ('orbit', 'pan')
+NUS_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
+NUS_RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'  # add-in -> device
+NUS_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'  # device -> add-in
 
 app = adsk.core.Application.get()
 handlers = []
@@ -63,6 +77,7 @@ class SerialReader(threading.Thread):
         super().__init__(daemon=True)
         self.stop_flag = threading.Event()
         self.ser = None
+        self.write = None         # bytes -> device, for the current connection
         self.center = None
         self.boot_samples = []
         self.mode = 0
@@ -72,66 +87,131 @@ class SerialReader(threading.Thread):
         self.long_fired = False   # home already sent for the current press
 
     def run(self):
+        if USE_BLE and BLE_IMPORT_ERROR:
+            log('BLE unavailable ({}); USB only'.format(BLE_IMPORT_ERROR))
         while not self.stop_flag.is_set():
             port = find_port()
-            if not port:
-                self.stop_flag.wait(2)
-                continue
-            try:
-                self.ser = serial.Serial()
-                self.ser.port = port
-                self.ser.baudrate = BAUD
-                self.ser.timeout = 0.5
-                self.ser.dtr = False  # don't reset the ESP32 on open
-                self.ser.rts = False
-                self.ser.open()
-                log('connected: ' + port)
-                self.send_mode()
-                self.read_loop()
-            except Exception as e:
-                if not self.stop_flag.is_set():
-                    log('serial error: {} (retrying)'.format(e))
-            finally:
-                if self.ser:
-                    self.send_mode('')  # clear the mode on the device's LCD
-                    self.ser.close()
-                    self.ser = None
+            if port:
+                self.serial_session(port)
+            elif USE_BLE and BleakClient:
+                try:
+                    asyncio.run(self.ble_session())
+                except Exception as e:
+                    if not self.stop_flag.is_set():
+                        log('BLE error: {} (retrying)'.format(e))
+                finally:
+                    self.write = None
             self.stop_flag.wait(2)
 
-    def read_loop(self):
-        while not self.stop_flag.is_set():
-            line = self.ser.readline().decode('ascii', 'ignore').strip()
-            if not line:
-                continue
-            if line.startswith('# calibrated center:'):
-                # "# calibrated center: x=2050 y=2041"
-                try:
-                    parts = dict(kv.split('=') for kv in line.split(':', 1)[1].split())
-                    self.center = (int(parts['x']), int(parts['y']))
-                    log('center: {}'.format(self.center))
-                except Exception:
-                    pass
-                continue
+    def serial_session(self, port):
+        try:
+            self.ser = serial.Serial()
+            self.ser.port = port
+            self.ser.baudrate = BAUD
+            self.ser.timeout = 0.5
+            self.ser.dtr = False  # don't reset the ESP32 on open
+            self.ser.rts = False
+            self.ser.open()
+            self.write = self.ser.write
+            log('connected: ' + port)
+            self.send_mode()
+            while not self.stop_flag.is_set():
+                line = self.ser.readline().decode('ascii', 'ignore').strip()
+                if line:
+                    self.handle_line(line)
+        except Exception as e:
+            if not self.stop_flag.is_set():
+                log('serial error: {} (retrying)'.format(e))
+        finally:
+            if self.ser:
+                self.send_mode('')  # tell the device the add-in stopped
+                self.ser.close()
+                self.ser = None
+            self.write = None
+
+    async def ble_session(self):
+        device = None
+
+        def on_detect(d, ad):
+            nonlocal device
+            if device is None and (d.name == BLE_NAME or NUS_SERVICE in ad.service_uuids):
+                device = d
+
+        # Poll instead of find_device_by_filter() so stop() isn't held up by the scan
+        async with BleakScanner(on_detect):
+            t0 = time.perf_counter()
+            while (device is None and not self.stop_flag.is_set()
+                   and time.perf_counter() - t0 < BLE_SCAN_SEC):
+                await asyncio.sleep(0.2)
+        if device is None or self.stop_flag.is_set():
+            return
+
+        loop = asyncio.get_running_loop()
+        buf = bytearray()
+        pending = set()  # keep write tasks referenced until they finish
+
+        def on_notify(_, data):
+            buf.extend(data)
+            while b'\n' in buf:
+                i = buf.index(b'\n')
+                line = buf[:i].decode('ascii', 'ignore').strip()
+                del buf[:i + 1]
+                if line:
+                    self.handle_line(line)
+
+        async with BleakClient(device, timeout=10) as client:
+            def spawn_write(data):
+                task = loop.create_task(client.write_gatt_char(NUS_RX, data, response=False))
+                pending.add(task)
+                task.add_done_callback(pending.discard)
+
+            await client.start_notify(NUS_TX, on_notify)
+            # Callable from any thread (and from on_notify, which runs on this loop)
+            self.write = lambda data: loop.call_soon_threadsafe(spawn_write, bytes(data))
+            log('connected: BLE ' + (device.name or device.address))
+            self.send_mode()
             try:
-                x, y, sw = (int(v) for v in line.split(','))
-            except ValueError:
-                continue
-            self.handle_sw(sw)
-            if sw == 0:
-                continue  # don't move the view while the stick is pushed in
-            if self.center is None:
-                # Initial center = average of the first samples (device is at rest)
-                self.boot_samples.append((x, y))
-                if len(self.boot_samples) >= 10:
-                    n = len(self.boot_samples)
-                    self.center = (sum(s[0] for s in self.boot_samples) // n,
-                                   sum(s[1] for s in self.boot_samples) // n)
-                    log('center: {}'.format(self.center))
-                continue
-            nx = normalize(x - self.center[0])
-            ny = normalize(y - self.center[1])
-            app.fireCustomEvent(EVENT_ID, json.dumps(
-                {'action': 'move', 'nx': nx, 'ny': ny, 'mode': MODES[self.mode]}))
+                while client.is_connected and not self.stop_flag.is_set():
+                    await asyncio.sleep(0.2)
+            finally:
+                self.write = None
+                if client.is_connected:
+                    try:  # tell the device the add-in stopped
+                        await client.write_gatt_char(NUS_RX, b'M:\n', response=False)
+                    except Exception:
+                        pass
+        log('BLE disconnected')
+
+    def handle_line(self, line):
+        if line.startswith('# calibrated center:'):
+            # "# calibrated center: x=2050 y=2041"
+            try:
+                parts = dict(kv.split('=') for kv in line.split(':', 1)[1].split())
+                self.center = (int(parts['x']), int(parts['y']))
+                log('center: {}'.format(self.center))
+            except Exception:
+                pass
+            return
+        try:
+            x, y, sw = (int(v) for v in line.split(','))
+        except ValueError:
+            return
+        self.handle_sw(sw)
+        if sw == 0:
+            return  # don't move the view while the stick is pushed in
+        if self.center is None:
+            # Initial center = average of the first samples (device is at rest)
+            self.boot_samples.append((x, y))
+            if len(self.boot_samples) >= 10:
+                n = len(self.boot_samples)
+                self.center = (sum(s[0] for s in self.boot_samples) // n,
+                               sum(s[1] for s in self.boot_samples) // n)
+                log('center: {}'.format(self.center))
+            return
+        nx = normalize(x - self.center[0])
+        ny = normalize(y - self.center[1])
+        app.fireCustomEvent(EVENT_ID, json.dumps(
+            {'action': 'move', 'nx': nx, 'ny': ny, 'mode': MODES[self.mode]}))
 
     def handle_sw(self, sw):
         """sw is 0 while pressed. Short press toggles the mode on release;
@@ -156,11 +236,11 @@ class SerialReader(threading.Thread):
         self.prev_sw = sw
 
     def send_mode(self, mode=None):
-        """Tell the device which mode to show on its LCD ("M:<mode>\\n")."""
+        """Tell the device the current mode ("M:<mode>\\n")."""
         if mode is None:
             mode = MODES[self.mode]
         try:
-            self.ser.write(('M:' + mode + '\n').encode('ascii'))
+            self.write(('M:' + mode + '\n').encode('ascii'))
         except Exception:
             pass
 
