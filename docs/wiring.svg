@@ -1,8 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540" width="900" height="540" font-family="'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif">
-  <rect width="900" height="540" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 840" width="900" height="840" font-family="'Noto Sans JP','Hiragino Sans','Yu Gothic','Meiryo',sans-serif">
+  <rect width="900" height="840" fill="#ffffff"/>
 
   <text x="24" y="36" font-size="22" font-weight="bold" fill="#222">JoyStick 実体配線図</text>
-  <text x="24" y="58" font-size="13" fill="#555">Seeed Studio XIAO ESP32C3 × Keyestudio KS0008</text>
+  <text x="24" y="58" font-size="13" fill="#555">Seeed Studio XIAO ESP32C3 × Keyestudio KS0008 + ロータリーエンコーダ(KS0522 Lesson 37)+ マイクロスイッチ ×2</text>
 
   <!-- ===== KS0008(ピンが右を向く向き。上から Y / X / B / V / G) ===== -->
   <rect x="40" y="200" width="230" height="230" rx="14" fill="#1b1b1b" stroke="#000" stroke-width="2"/>
@@ -81,18 +81,18 @@
     <text x="450" y="260.5" fill="#fff" font-weight="bold">D1</text>
     <text x="450" y="291" fill="#fff" font-weight="bold">D2</text>
     <text x="450" y="321.5" fill="#fff" font-weight="bold">D3</text>
-    <text x="450" y="352">D4</text>
-    <text x="450" y="382.5">D5</text>
+    <text x="450" y="352" fill="#fff" font-weight="bold">D4</text>
+    <text x="450" y="382.5" fill="#fff" font-weight="bold">D5</text>
     <text x="450" y="413">D6</text>
   </g>
   <g font-size="13" dominant-baseline="central" fill="#888" text-anchor="end">
     <text x="620" y="230">5V</text>
     <text x="620" y="260.5" fill="#fff" font-weight="bold">GND</text>
     <text x="620" y="291" fill="#f5c400" font-weight="bold">3V3</text>
-    <text x="620" y="321.5">D10</text>
+    <text x="620" y="321.5" fill="#fff" font-weight="bold">D10</text>
     <text x="620" y="352">D9</text>
     <text x="620" y="382.5">D8</text>
-    <text x="620" y="413">D7</text>
+    <text x="620" y="413" fill="#fff" font-weight="bold">D7</text>
   </g>
 
   <!-- ===== 配線 ===== -->
@@ -101,13 +101,11 @@
     <g stroke="#333" stroke-width="8">
       <path d="M 310 260.5 H 420"/>
       <path d="M 310 291 H 420"/>
-      <path d="M 310 321.5 H 420"/>
       <path d="M 310 352 H 360 V 490 H 680 V 291 H 650"/>
       <path d="M 310 382.5 H 340 V 515 H 710 V 260.5 H 650"/>
     </g>
     <path d="M 310 260.5 H 420" stroke="#f5c400" stroke-width="5"/>
     <path d="M 310 291 H 420" stroke="#f4f4f4" stroke-width="5"/>
-    <path d="M 310 321.5 H 420" stroke="#2e9e4f" stroke-width="5"/>
     <path d="M 310 352 H 360 V 490 H 680 V 291 H 650" stroke="#e53935" stroke-width="5"/>
     <path d="M 310 382.5 H 340 V 515 H 710 V 260.5 H 650" stroke="#1a1a1a" stroke-width="5"/>
   </g>
@@ -116,12 +114,10 @@
   <g fill="#111">
     <rect x="296" y="253.5" width="26" height="14" rx="2"/>
     <rect x="296" y="284" width="26" height="14" rx="2"/>
-    <rect x="296" y="314.5" width="26" height="14" rx="2"/>
     <rect x="296" y="345" width="26" height="14" rx="2"/>
     <rect x="296" y="375.5" width="26" height="14" rx="2"/>
     <rect x="410" y="253.5" width="22" height="14" rx="2"/>
     <rect x="410" y="284" width="22" height="14" rx="2"/>
-    <rect x="410" y="314.5" width="22" height="14" rx="2"/>
     <rect x="638" y="253.5" width="22" height="14" rx="2"/>
     <rect x="638" y="284" width="22" height="14" rx="2"/>
   </g>
@@ -130,7 +126,123 @@
   <g font-size="12" font-weight="bold">
     <text x="334" y="250" fill="#8a6d00">Y → D1</text>
     <text x="334" y="281" fill="#222">X → D2</text>
-    <text x="334" y="311" fill="#1e7a3a">B → D3</text>
+  </g>
+
+  <!-- ===== ロータリーエンコーダ(ピンが上を向く向き) ===== -->
+  <rect x="440" y="610" width="180" height="130" rx="12" fill="#1b1b1b" stroke="#000" stroke-width="2"/>
+  <rect x="505" y="645" width="50" height="50" rx="4" fill="#9aa0a6" stroke="#555" stroke-width="2"/>
+  <circle cx="530" cy="670" r="18" fill="#c8ccd0" stroke="#555" stroke-width="2"/>
+  <path d="M 521 670 H 539" stroke="#555" stroke-width="4"/>
+  <g fill="#e8c600">
+    <rect x="462" y="598" width="16" height="12" rx="2"/>
+    <rect x="492" y="598" width="16" height="12" rx="2"/>
+    <rect x="522" y="598" width="16" height="12" rx="2"/>
+    <rect x="552" y="598" width="16" height="12" rx="2"/>
+    <rect x="582" y="598" width="16" height="12" rx="2"/>
+  </g>
+  <g fill="#c9c9c9" stroke="#888">
+    <rect x="467" y="575" width="6" height="23"/>
+    <rect x="497" y="575" width="6" height="23"/>
+    <rect x="527" y="575" width="6" height="23"/>
+    <rect x="557" y="575" width="6" height="23"/>
+    <rect x="587" y="575" width="6" height="23"/>
+  </g>
+  <g font-size="12" font-weight="bold" fill="#e8d36a" text-anchor="middle">
+    <text x="470" y="628">CLK</text>
+    <text x="500" y="628">DT</text>
+    <text x="530" y="628">SW</text>
+    <text x="560" y="628">+</text>
+    <text x="590" y="628">−</text>
+  </g>
+  <text x="530" y="765" font-size="15" font-weight="bold" fill="#222" text-anchor="middle">ロータリーエンコーダ</text>
+  <text x="24" y="790" font-size="12" fill="#555">エンコーダの + と − はジョイスティックと共用(● で分岐。ブレッドボード等で)。+ は 3V3 に(5V 不可)。</text>
+  <text x="24" y="808" font-size="12" fill="#555">ジョイスティックの B(押し込み)は使わないので配線しない。ピンの並びはモジュールの印字に合わせること。</text>
+  <text x="24" y="826" font-size="12" fill="#555">マイクロスイッチは COM を GND(● で分岐)、NO を左は D10・右は D7 に。NC は配線しない。端子の位置はスイッチの印字に合わせること。</text>
+
+  <!-- ===== エンコーダの配線 ===== -->
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <g stroke="#333" stroke-width="8">
+      <path d="M 420 352 H 395 V 550 H 470 V 570"/>
+      <path d="M 420 382.5 H 410 V 540 H 500 V 570"/>
+      <path d="M 560 490 V 570"/>
+      <path d="M 590 515 V 570"/>
+    </g>
+    <path d="M 420 352 H 395 V 550 H 470 V 570" stroke="#1e88e5" stroke-width="5"/>
+    <path d="M 420 382.5 H 410 V 540 H 500 V 570" stroke="#fb8c00" stroke-width="5"/>
+    <path d="M 560 490 V 570" stroke="#e53935" stroke-width="5"/>
+    <path d="M 590 515 V 570" stroke="#1a1a1a" stroke-width="5"/>
+    <!-- SW は CLK・DT・電源線の上を通る -->
+    <path d="M 420 321.5 H 380 V 560 H 530 V 570" stroke="#333" stroke-width="8"/>
+    <path d="M 420 321.5 H 380 V 560 H 530 V 570" stroke="#2e9e4f" stroke-width="5"/>
+  </g>
+  <circle cx="560" cy="490" r="7" fill="#e53935" stroke="#333" stroke-width="2"/>
+  <circle cx="590" cy="515" r="7" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+  <g fill="#111">
+    <rect x="410" y="314.5" width="22" height="14" rx="2"/>
+    <rect x="410" y="345" width="22" height="14" rx="2"/>
+    <rect x="410" y="375.5" width="22" height="14" rx="2"/>
+    <rect x="463" y="562" width="14" height="22" rx="2"/>
+    <rect x="493" y="562" width="14" height="22" rx="2"/>
+    <rect x="523" y="562" width="14" height="22" rx="2"/>
+    <rect x="553" y="562" width="14" height="22" rx="2"/>
+    <rect x="583" y="562" width="14" height="22" rx="2"/>
+  </g>
+  <g font-size="12" font-weight="bold">
+    <text x="300" y="548" fill="#1565c0">CLK → D4</text>
+    <text x="300" y="530" fill="#e65100">DT → D5</text>
+    <text x="300" y="568" fill="#1e7a3a">SW → D3</text>
+  </g>
+
+  <!-- ===== マイクロスイッチ(端子が左を向く向き。上から NO / COM) ===== -->
+  <g>
+    <!-- 左スイッチ -->
+    <rect x="846" y="298" width="12" height="8" fill="#e53935"/>
+    <rect x="780" y="306" width="110" height="65" rx="4" fill="#1b1b1b" stroke="#000" stroke-width="2"/>
+    <!-- 右スイッチ -->
+    <rect x="846" y="389" width="12" height="8" fill="#e53935"/>
+    <rect x="780" y="397" width="110" height="65" rx="4" fill="#1b1b1b" stroke="#000" stroke-width="2"/>
+  </g>
+  <g fill="#c9c9c9" stroke="#888">
+    <rect x="766" y="318" width="14" height="7"/>
+    <rect x="766" y="352" width="14" height="7"/>
+    <rect x="766" y="409.5" width="14" height="7"/>
+    <rect x="766" y="443.5" width="14" height="7"/>
+  </g>
+  <g font-size="10" font-weight="bold" fill="#e8d36a" dominant-baseline="central">
+    <text x="785" y="321.5">NO</text>
+    <text x="785" y="355.5">COM</text>
+    <text x="785" y="413">NO</text>
+    <text x="785" y="447">COM</text>
+  </g>
+  <g fill="#fff" text-anchor="middle" dominant-baseline="central">
+    <text x="852" y="330" font-size="13" font-weight="bold">左スイッチ</text>
+    <text x="852" y="350" font-size="11">Fit</text>
+    <text x="852" y="421" font-size="13" font-weight="bold">右スイッチ</text>
+    <text x="852" y="441" font-size="11">ホーム</text>
+  </g>
+
+  <!-- ===== マイクロスイッチの配線 ===== -->
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <g stroke="#333" stroke-width="8">
+      <path d="M 710 355.5 H 766"/>
+      <path d="M 710 447 H 766"/>
+      <path d="M 650 321.5 H 766"/>
+      <path d="M 650 413 H 766"/>
+    </g>
+    <path d="M 710 355.5 H 766" stroke="#1a1a1a" stroke-width="5"/>
+    <path d="M 710 447 H 766" stroke="#1a1a1a" stroke-width="5"/>
+    <path d="M 650 321.5 H 766" stroke="#8e24aa" stroke-width="5"/>
+    <path d="M 650 413 H 766" stroke="#00897b" stroke-width="5"/>
+  </g>
+  <circle cx="710" cy="355.5" r="7" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+  <circle cx="710" cy="447" r="7" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+  <g fill="#111">
+    <rect x="638" y="314.5" width="22" height="14" rx="2"/>
+    <rect x="638" y="406" width="22" height="14" rx="2"/>
+  </g>
+  <g font-size="12" font-weight="bold">
+    <text x="722" y="314" fill="#6a1b9a">D10</text>
+    <text x="722" y="405" fill="#00695c">D7</text>
   </g>
 
 </svg>

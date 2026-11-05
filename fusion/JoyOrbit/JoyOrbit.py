@@ -3,13 +3,18 @@
 # Without USB it connects over BLE instead (Nordic UART Service, same lines).
 #
 #   stick              -> move the view in the current mode
+#                         (orbit pivots on the selection's center, if any)
 #   sw short press     -> toggle mode: orbit <-> pan (on release)
 #   sw long press      -> home view (fires once while still held)
-#                         (sw = stick push; the view doesn't move while it's held)
+#                         (sw = encoder push; the view doesn't move while it's held)
+#   rotary encoder     -> zoom (clockwise = in), from the "E:<detents>" lines
+#   left / right button -> fit / home view (on press; see BUTTON_ACTIONS),
+#                         from the "B:<n>,<state>" lines
 #   BOOT on the device -> re-center (the "# calibrated center" line is picked up)
 
 import asyncio
 import json
+import math
 import os
 import sys
 import threading
@@ -35,13 +40,18 @@ USB_VIDS = (0x303A,)        # Espressif USB Serial/JTAG (XIAO ESP32C3)
 USE_BLE = True              # fall back to BLE when no USB port is found
 BLE_NAME = 'JoyStick-XIAO'
 BLE_SCAN_SEC = 5.0          # scan this long per attempt
-DEADZONE = 250              # raw counts around center (0-4095 scale) that are ignored
+DEADZONE = 0             # raw counts from center (radius, 0-4095 scale) that are ignored
+EXPO = 1.5                # response curve exponent: 1 = linear, larger = finer near center
 ORBIT_DEG_PER_SEC = 90.0    # orbit speed at full deflection
+ORBIT_AROUND_SELECTION = True  # orbit around the selection's center when something is selected
 PAN_PER_SEC = 0.3          # pan speed at full deflection, x eye-target distance
 SIGN_X = 1                  # flip to -1 if left/right is reversed
 SIGN_Y = -1                 # flip to -1 if up/down is reversed
 DEBOUNCE_SEC = 0.3          # ignore sw pushes closer together than this
 LONG_PRESS_SEC = 0.8        # hold sw this long to go to the home view
+ZOOM_PER_DETENT = 1.1       # zoom factor per encoder click
+ZOOM_SIGN = 1               # flip to -1 if clockwise zooms out
+BUTTON_ACTIONS = {1: 'fit', 2: 'home'}  # 1 = left, 2 = right -> 'fit' or 'home'
 # -----------------------------------------------------------------------------
 
 EVENT_ID = 'JoyOrbitInput'
@@ -85,6 +95,8 @@ class SerialReader(threading.Thread):
         self.last_push = 0.0
         self.press_t = None       # when the current (debounced) press started
         self.long_fired = False   # home already sent for the current press
+        self.latest_move = None   # (nx, ny, mode) of the newest sample
+        self.move_pending = False # a move event is queued and not yet handled
 
     def run(self):
         if USE_BLE and BLE_IMPORT_ERROR:
@@ -192,13 +204,33 @@ class SerialReader(threading.Thread):
             except Exception:
                 pass
             return
+        if line.startswith('E:'):
+            # "E:<detents>"
+            try:
+                steps = int(line[2:])
+            except ValueError:
+                return
+            if steps:
+                app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'zoom', 'steps': steps}))
+            return
+        if line.startswith('B:'):
+            # "B:<n>,<state>" (state 0 = pressed; the device debounces)
+            try:
+                n, state = (int(v) for v in line[2:].split(','))
+            except ValueError:
+                return
+            action = BUTTON_ACTIONS.get(n)
+            if state == 0 and action:
+                log(action)
+                app.fireCustomEvent(EVENT_ID, json.dumps({'action': action}))
+            return
         try:
             x, y, sw = (int(v) for v in line.split(','))
         except ValueError:
             return
         self.handle_sw(sw)
         if sw == 0:
-            return  # don't move the view while the stick is pushed in
+            return  # don't move the view while sw (encoder push) is held
         if self.center is None:
             # Initial center = average of the first samples (device is at rest)
             self.boot_samples.append((x, y))
@@ -208,10 +240,13 @@ class SerialReader(threading.Thread):
                                sum(s[1] for s in self.boot_samples) // n)
                 log('center: {}'.format(self.center))
             return
-        nx = normalize(x - self.center[0])
-        ny = normalize(y - self.center[1])
-        app.fireCustomEvent(EVENT_ID, json.dumps(
-            {'action': 'move', 'nx': nx, 'ny': ny, 'mode': MODES[self.mode]}))
+        nx, ny = normalize(x - self.center[0], y - self.center[1])
+        # Samples arrive at 100 Hz; if the main thread falls behind, keep only
+        # the newest one instead of letting events queue up (that would lag).
+        self.latest_move = (nx, ny, MODES[self.mode])
+        if not self.move_pending:
+            self.move_pending = True
+            app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'move'}))
 
     def handle_sw(self, sw):
         """sw is 0 while pressed. Short press toggles the mode on release;
@@ -253,42 +288,65 @@ class SerialReader(threading.Thread):
                 pass
 
 
-def normalize(d):
-    """Raw offset -> -1..1 with the dead zone removed."""
-    if abs(d) <= DEADZONE:
-        return 0.0
-    span = 2047 - DEADZONE
-    v = (abs(d) - DEADZONE) / span
-    return max(-1.0, min(1.0, v if d > 0 else -v))
+def normalize(dx, dy):
+    """Raw offset -> (nx, ny), each -1..1. The dead zone is a circle and the
+    EXPO curve is applied to the length, so the direction is kept as is."""
+    r = math.hypot(dx, dy)
+    if r <= DEADZONE:
+        return 0.0, 0.0
+    m = min(1.0, (r - DEADZONE) / (2047 - DEADZONE)) ** EXPO
+    return dx / r * m, dy / r * m
 
 
 class InputHandler(adsk.core.CustomEventHandler):
     def __init__(self):
         super().__init__()
         self.last_t = None
+        self.pivot = None  # orbit center, fixed from tilt until back to center
 
     def notify(self, args):
         try:
-            now = time.perf_counter()
-            dt = 0.0 if self.last_t is None else min(now - self.last_t, 0.1)
-            self.last_t = now
             data = json.loads(args.additionalInfo)
             if data['action'] == 'home':
                 vp = app.activeViewport
                 if vp:
                     vp.goHome()
                 return
-            nx = data['nx'] * SIGN_X
-            ny = data['ny'] * SIGN_Y
-            if dt == 0.0 or (nx == 0.0 and ny == 0.0):
+            if data['action'] == 'fit':
+                vp = app.activeViewport
+                if vp:
+                    vp.fit()
+                return
+            if data['action'] == 'zoom':
+                vp = app.activeViewport
+                if vp:
+                    zoom(vp, data['steps'])
+                    vp.refresh()
+                return
+            # Only move events count for dt (others would shorten the next step)
+            now = time.perf_counter()
+            dt = 0.0 if self.last_t is None else min(now - self.last_t, 0.1)
+            self.last_t = now
+            if not reader:
+                return
+            reader.move_pending = False  # clear first: a newer sample fires again
+            nx, ny, mode = reader.latest_move
+            nx *= SIGN_X
+            ny *= SIGN_Y
+            if nx == 0.0 and ny == 0.0:
+                self.pivot = None
+                return
+            if dt == 0.0:
                 return
             vp = app.activeViewport
             if not vp:
                 return
-            if data['mode'] == 'pan':
+            if mode == 'pan':
                 pan(vp, nx, ny, dt)
             else:
-                orbit(vp, nx, ny, dt)
+                if self.pivot is None:
+                    self.pivot = selection_center() or vp.camera.target
+                orbit(vp, nx, ny, dt, self.pivot)
             # Setting vp.camera alone doesn't redraw until the next mouse event
             vp.refresh()
         except Exception:
@@ -305,18 +363,50 @@ def camera_axes(cam):
     return view, up, right
 
 
-def orbit(vp, nx, ny, dt):
+def selection_center():
+    """Center of the selected entities' bounding boxes (model space), or None
+    when nothing is selected or ORBIT_AROUND_SELECTION is off."""
+    if not ORBIT_AROUND_SELECTION:
+        return None
+    box = None
+    for sel in app.userInterface.activeSelections:
+        ent = sel.entity
+        bb = None
+        # Sketch entities report their box in sketch space; use the picked point
+        if '::Sketch' not in ent.objectType:
+            try:
+                bb = ent.boundingBox
+            except Exception:
+                pass
+        if bb is None:
+            bb = adsk.core.BoundingBox3D.create(sel.point, sel.point)
+        if box is None:
+            box = bb.copy()
+        else:
+            box.combine(bb)
+    if box is None:
+        return None
+    lo, hi = box.minPoint, box.maxPoint
+    return adsk.core.Point3D.create((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, (lo.z + hi.z) / 2)
+
+
+def orbit(vp, nx, ny, dt, pivot):
+    """Rotate the camera around pivot (the target moves with it, so the pivot
+    stays where it is on screen)."""
     cam = vp.camera
     _, up, right = camera_axes(cam)
     yaw = adsk.core.Matrix3D.create()
-    yaw.setToRotation(-nx * ORBIT_DEG_PER_SEC * dt * 3.14159265 / 180, up, cam.target)
+    yaw.setToRotation(-nx * ORBIT_DEG_PER_SEC * dt * 3.14159265 / 180, up, pivot)
     pitch = adsk.core.Matrix3D.create()
-    pitch.setToRotation(ny * ORBIT_DEG_PER_SEC * dt * 3.14159265 / 180, right, cam.target)
+    pitch.setToRotation(ny * ORBIT_DEG_PER_SEC * dt * 3.14159265 / 180, right, pivot)
     yaw.transformBy(pitch)
     eye = cam.eye
+    target = cam.target
     eye.transformBy(yaw)
+    target.transformBy(yaw)
     up.transformBy(yaw)
     cam.eye = eye
+    cam.target = target
     cam.upVector = up
     cam.isSmoothTransition = False
     vp.camera = cam
@@ -335,6 +425,23 @@ def pan(vp, nx, ny, dt):
     target.translateBy(right)
     cam.eye = eye
     cam.target = target
+    cam.isSmoothTransition = False
+    vp.camera = cam
+
+
+def zoom(vp, steps):
+    """Zoom in by ZOOM_PER_DETENT per step (negative steps zoom out) toward
+    the target. viewExtents covers orthographic; in perspective the eye is
+    moved too, so the two stay consistent."""
+    cam = vp.camera
+    k = ZOOM_PER_DETENT ** (-steps * ZOOM_SIGN)
+    cam.viewExtents = cam.viewExtents * k
+    if cam.cameraType == adsk.core.CameraTypes.PerspectiveCameraType:
+        back = cam.target.vectorTo(cam.eye)
+        back.scaleBy(k)
+        eye = cam.target.copy()
+        eye.translateBy(back)
+        cam.eye = eye
     cam.isSmoothTransition = False
     vp.camera = cam
 
