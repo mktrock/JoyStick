@@ -43,7 +43,7 @@ PlatformIO を使います。VS Code の PlatformIO 拡張の Build/Upload/Monit
 | 押し込む | シリアルの `sw` が 0 |
 
 - シリアルには `x,y,sw` の形式で 1 行ずつ出力します(KS0008 のサンプルスケッチと同じ形式)。BLE(Nordic UART Service、デバイス名 `JoyStick-XIAO`)でも同じ形式で送ります。
-- 中央値は起動時に自動で校正し、`# calibrated center: x=… y=…` を出力します。ずれたときはスティックを離した状態で基板の BOOT ボタンを押すと、校正し直します。
+- 中央値は起動時に自動で校正し、`# calibrated center: x=… y=…` を出力します。ずれたときはスティックを離した状態で基板の BOOT ボタンを押すか、左右のボタンを同時に 1 秒長押しすると、そのときのスティック位置を中央として校正し直します。
 
 ## Fusion の視点操作に使う(JoyOrbit アドイン)
 
@@ -55,6 +55,7 @@ PlatformIO を使います。VS Code の PlatformIO 拡張の Build/Upload/Monit
 | SW を短く押す | モードを オービット ⇔ パン で切り替える(今のモードはシリアルに `# mode: orbit` のように出る) |
 | SW を長押し(0.8 秒) | ビューをホームに戻す |
 | エンコーダを回す | オービットモード: モデルの Z 軸の周りにビューを回す(ターンテーブル)<br>パンモード: ズーム(時計回りで拡大) |
+| 左右のボタンを同時に長押し(1 秒) | 今のスティック位置を中央として校正し直す |
 | BOOT ボタン | 今のスティック位置を中央として校正し直す |
 
 ### 導入
@@ -65,4 +66,4 @@ PlatformIO を使います。VS Code の PlatformIO 拡張の Build/Upload/Monit
 
 - 接続状況は Fusion の **テキストコマンド** ウィンドウに `[JoyOrbit] connected: COM8` のように出ます。
 - アドイン実行中はシリアルポートを占有するので、`pio device monitor` や書き込みの前にアドインを停止してください。
-- 速度・不感帯・向きの反転は [JoyOrbit.py](fusion/JoyOrbit/JoyOrbit.py) 冒頭の設定(`ORBIT_DEG_PER_SEC`、`PAN_PER_SEC`、`DEADZONE`、`SIGN_X`/`SIGN_Y`、`PORT`)で変えられます。
+- 速度・不感帯・向きの反転は [JoyOrbit.py](fusion/JoyOrbit/JoyOrbit.py) 冒頭の設定(`ORBIT_DEG_PER_SEC`、`PAN_PER_SEC`、`DEADZONE`、`SIGN_X`/`SIGN_Y`、`PORT`)で変えられます。同時長押しの時間はファームウェアの `CAL_HOLD_MS` です。

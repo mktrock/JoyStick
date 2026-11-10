@@ -13,7 +13,9 @@
 //   Encoder SW  -> D3 (GPIO5)  (this is the sw in the CSV)
 //   Left  button (micro switch) NO -> D10 (GPIO10), COM -> GND (NC unused)
 //   Right button (micro switch) NO -> D7  (GPIO20), COM -> GND (NC unused)
-// The on-board BOOT button recalibrates the center.
+// The on-board BOOT button recalibrates the center, and so does holding both
+// buttons for CAL_HOLD_MS (the stick's position at that moment becomes the
+// center).
 //
 // The rotary encoder goes out on its own line, "E:<detents>", only when it
 // turns: detents since the last E line (+ = clockwise). The buttons go out as
@@ -215,7 +217,20 @@ static void readXY(int& x, int& y, int samples = 8) {
 static int readSW() { return digitalRead(PIN_SW); }
 #endif
 
+static void calibrate() {
+#ifndef SIMULATE
+  readXY(centerX, centerY, 32);
+#endif
+  char buf[48];
+  snprintf(buf, sizeof(buf), "# calibrated center: x=%d y=%d\n", centerX, centerY);
+  emit(buf);
+}
+
+// Hold both buttons this long to recalibrate (once per hold).
+constexpr uint32_t CAL_HOLD_MS = 1000;
+
 // "B:<n>,<state>" for each debounced change (state 0 = pressed, like sw).
+// Both held for CAL_HOLD_MS -> calibrate().
 static void pollButtons() {
   static int stable[NUM_BTN] = {HIGH, HIGH};  // last level sent
   static int last[NUM_BTN] = {HIGH, HIGH};    // last level read
@@ -233,15 +248,22 @@ static void pollButtons() {
       emit(buf);
     }
   }
-}
 
-static void calibrate() {
-#ifndef SIMULATE
-  readXY(centerX, centerY, 32);
-#endif
-  char buf[48];
-  snprintf(buf, sizeof(buf), "# calibrated center: x=%d y=%d\n", centerX, centerY);
-  emit(buf);
+  static bool bothHeld = false;
+  static bool calDone = false;  // already calibrated during this hold
+  static uint32_t bothSinceMs = 0;
+  if (stable[0] == LOW && stable[1] == LOW) {
+    if (!bothHeld) {
+      bothHeld = true;
+      calDone = false;
+      bothSinceMs = now;
+    } else if (!calDone && now - bothSinceMs >= CAL_HOLD_MS) {
+      calDone = true;
+      calibrate();
+    }
+  } else {
+    bothHeld = false;
+  }
 }
 
 void setup() {
