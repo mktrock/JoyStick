@@ -44,6 +44,7 @@ DEADZONE = 0             # raw counts from center (radius, 0-4095 scale) that ar
 EXPO = 1.5                # response curve exponent: 1 = linear, larger = finer near center
 ORBIT_DEG_PER_SEC = 90.0    # orbit speed at full deflection
 ORBIT_AROUND_SELECTION = True  # orbit around the selection's center when something is selected
+MAX_UPDATE_HZ = 30          # view updates per second at most (more makes the mouse sluggish)
 PAN_PER_SEC = 0.3          # pan speed at full deflection, x eye-target distance
 SIGN_X = 1                  # flip to -1 if left/right is reversed
 SIGN_Y = -1                 # flip to -1 if up/down is reversed
@@ -97,6 +98,8 @@ class SerialReader(threading.Thread):
         self.long_fired = False   # home already sent for the current press
         self.latest_move = None   # (nx, ny, mode) of the newest sample
         self.move_pending = False # a move event is queued and not yet handled
+        self.last_fire = 0.0      # when the last move event was fired
+        self.moving = False       # the last fired move was off center
 
     def run(self):
         if USE_BLE and BLE_IMPORT_ERROR:
@@ -241,11 +244,22 @@ class SerialReader(threading.Thread):
                 log('center: {}'.format(self.center))
             return
         nx, ny = normalize(x - self.center[0], y - self.center[1])
-        # Samples arrive at 100 Hz; if the main thread falls behind, keep only
-        # the newest one instead of letting events queue up (that would lag).
+        # Samples arrive at 100 Hz, but every move redraws the viewport on
+        # Fusion's main thread, which also handles the mouse. So at rest only
+        # the first centered sample is sent (to reset the pivot), moves are
+        # sent at most MAX_UPDATE_HZ, and if the main thread falls behind only
+        # the newest sample is kept instead of letting events queue up.
+        moving = nx != 0.0 or ny != 0.0
         self.latest_move = (nx, ny, MODES[self.mode])
+        if not moving and not self.moving:
+            return
+        now = time.perf_counter()
+        if moving and now - self.last_fire < 1.0 / MAX_UPDATE_HZ:
+            return
         if not self.move_pending:
             self.move_pending = True
+            self.last_fire = now
+            self.moving = moving
             app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'move'}))
 
     def handle_sw(self, sw):
@@ -335,6 +349,7 @@ class InputHandler(adsk.core.CustomEventHandler):
             ny *= SIGN_Y
             if nx == 0.0 and ny == 0.0:
                 self.pivot = None
+                self.last_t = None  # no events at rest: don't count that time as dt
                 return
             if dt == 0.0:
                 return
