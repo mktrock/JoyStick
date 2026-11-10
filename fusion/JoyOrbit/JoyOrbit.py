@@ -7,7 +7,11 @@
 #   sw short press     -> toggle mode: orbit <-> pan (on release)
 #   sw long press      -> home view (fires once while still held)
 #                         (sw = encoder push; the view doesn't move while it's held)
-#   rotary encoder     -> zoom (clockwise = in), from the "E:<detents>" lines
+#   rotary encoder     -> orbit mode: spin around the model's Z axis like a
+#                         turntable (same pivot as the orbit; clockwise = the
+#                         model turns clockwise seen from +Z)
+#                         pan mode: zoom (clockwise = in)
+#                         (from the "E:<detents>" lines)
 #   left / right button -> fit / home view (on press; see BUTTON_ACTIONS),
 #                         from the "B:<n>,<state>" lines
 #   BOOT on the device -> re-center (the "# calibrated center" line is picked up)
@@ -50,7 +54,9 @@ SIGN_X = 1                  # flip to -1 if left/right is reversed
 SIGN_Y = -1                 # flip to -1 if up/down is reversed
 DEBOUNCE_SEC = 0.3          # ignore sw pushes closer together than this
 LONG_PRESS_SEC = 0.8        # hold sw this long to go to the home view
-ZOOM_PER_DETENT = 1.1       # zoom factor per encoder click
+SPIN_DEG_PER_DETENT = 15.0  # Z-axis spin angle per encoder click
+SPIN_SIGN = 1               # flip to -1 if clockwise turns the model counterclockwise
+ZOOM_PER_DETENT = 1.1       # zoom factor per encoder click (pan mode)
 ZOOM_SIGN = 1               # flip to -1 if clockwise zooms out
 BUTTON_ACTIONS = {1: 'fit', 2: 'home'}  # 1 = left, 2 = right -> 'fit' or 'home'
 # -----------------------------------------------------------------------------
@@ -214,7 +220,8 @@ class SerialReader(threading.Thread):
             except ValueError:
                 return
             if steps:
-                app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'zoom', 'steps': steps}))
+                action = 'zoom' if MODES[self.mode] == 'pan' else 'spin'
+                app.fireCustomEvent(EVENT_ID, json.dumps({'action': action, 'steps': steps}))
             return
         if line.startswith('B:'):
             # "B:<n>,<state>" (state 0 = pressed; the device debounces)
@@ -334,7 +341,15 @@ class InputHandler(adsk.core.CustomEventHandler):
             if data['action'] == 'zoom':
                 vp = app.activeViewport
                 if vp:
-                    zoom(vp, data['steps'])
+                    zoom(vp, ZOOM_PER_DETENT ** (-data['steps'] * ZOOM_SIGN))
+                    vp.refresh()
+                return
+            if data['action'] == 'spin':
+                vp = app.activeViewport
+                if vp:
+                    # Same pivot as the stick's orbit
+                    pivot = self.pivot or selection_center() or vp.camera.target
+                    spin_z(vp, data['steps'] * SPIN_SIGN * SPIN_DEG_PER_DETENT, pivot)
                     vp.refresh()
                 return
             # Only move events count for dt (others would shorten the next step)
@@ -406,14 +421,58 @@ def selection_center():
 
 
 def orbit(vp, nx, ny, dt, pivot):
-    """Rotate the camera around pivot (the target moves with it, so the pivot
-    stays where it is on screen)."""
+    deg = ORBIT_DEG_PER_SEC * dt
+    rotate_view(vp, nx * deg, ny * deg, pivot)
+
+
+def zoom(vp, factor):
+    """Scale the view by factor (< 1 = zoom in) toward the camera target.
+    Perspective views zoom by the eye's distance, orthographic ones by their
+    extents, so both are scaled."""
+    cam = vp.camera
+    eye = cam.eye
+    target = cam.target
+    back = target.vectorTo(eye)
+    back.scaleBy(factor)
+    eye = target.copy()
+    eye.translateBy(back)
+    cam.eye = eye
+    if cam.cameraType == adsk.core.CameraTypes.OrthographicCameraType:
+        cam.viewExtents = cam.viewExtents * factor
+    cam.isSmoothTransition = False
+    vp.camera = cam
+
+
+def spin_z(vp, deg, pivot):
+    """Rotate the camera around the model's Z axis through pivot, like a
+    turntable. Positive deg turns the camera counterclockwise seen from +Z,
+    so the model looks like it turns clockwise."""
+    cam = vp.camera
+    rot = adsk.core.Matrix3D.create()
+    rot.setToRotation(math.radians(deg), adsk.core.Vector3D.create(0, 0, 1), pivot)
+    eye = cam.eye
+    target = cam.target
+    up = cam.upVector
+    eye.transformBy(rot)
+    target.transformBy(rot)
+    up.transformBy(rot)
+    cam.eye = eye
+    cam.target = target
+    cam.upVector = up
+    cam.isSmoothTransition = False
+    vp.camera = cam
+
+
+def rotate_view(vp, yaw_deg, pitch_deg, pivot):
+    """Rotate the camera around pivot: yaw around the screen's vertical axis
+    (positive = like tilting the stick right), pitch around its horizontal
+    axis. The target moves with it, so the pivot stays where it is on screen."""
     cam = vp.camera
     _, up, right = camera_axes(cam)
     yaw = adsk.core.Matrix3D.create()
-    yaw.setToRotation(-nx * ORBIT_DEG_PER_SEC * dt * 3.14159265 / 180, up, pivot)
+    yaw.setToRotation(-math.radians(yaw_deg), up, pivot)
     pitch = adsk.core.Matrix3D.create()
-    pitch.setToRotation(ny * ORBIT_DEG_PER_SEC * dt * 3.14159265 / 180, right, pivot)
+    pitch.setToRotation(math.radians(pitch_deg), right, pivot)
     yaw.transformBy(pitch)
     eye = cam.eye
     target = cam.target
@@ -440,23 +499,6 @@ def pan(vp, nx, ny, dt):
     target.translateBy(right)
     cam.eye = eye
     cam.target = target
-    cam.isSmoothTransition = False
-    vp.camera = cam
-
-
-def zoom(vp, steps):
-    """Zoom in by ZOOM_PER_DETENT per step (negative steps zoom out) toward
-    the target. viewExtents covers orthographic; in perspective the eye is
-    moved too, so the two stay consistent."""
-    cam = vp.camera
-    k = ZOOM_PER_DETENT ** (-steps * ZOOM_SIGN)
-    cam.viewExtents = cam.viewExtents * k
-    if cam.cameraType == adsk.core.CameraTypes.PerspectiveCameraType:
-        back = cam.target.vectorTo(cam.eye)
-        back.scaleBy(k)
-        eye = cam.target.copy()
-        eye.translateBy(back)
-        cam.eye = eye
     cam.isSmoothTransition = False
     vp.camera = cam
 
