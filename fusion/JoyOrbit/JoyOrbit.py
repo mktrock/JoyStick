@@ -50,7 +50,7 @@ EXPO = 1.5                # response curve exponent: 1 = linear, larger = finer 
 ORBIT_DEG_PER_SEC = 90.0    # orbit speed at full deflection
 ORBIT_AROUND_SELECTION = True  # orbit around the selection's center when something is selected
 MAX_UPDATE_HZ = 30          # view updates per second at most (more makes the mouse sluggish)
-PAN_PER_SEC = 0.3          # pan speed at full deflection, x eye-target distance
+PAN_PER_SEC = 0.15         # pan speed at full deflection, x eye-target distance
 SIGN_X = 1                  # flip to -1 if left/right is reversed
 SIGN_Y = -1                 # flip to -1 if up/down is reversed
 LONG_PRESS_SEC = 0.8        # a button press this long or longer isn't a short press
