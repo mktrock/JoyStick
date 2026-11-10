@@ -4,16 +4,17 @@
 #
 #   stick              -> move the view in the current mode
 #                         (orbit pivots on the selection's center, if any)
-#   sw short press     -> toggle mode: orbit <-> pan (on release)
-#   sw long press      -> home view (fires once while still held)
-#                         (sw = encoder push; the view doesn't move while it's held)
 #   rotary encoder     -> orbit mode: spin around the model's Z axis like a
 #                         turntable (same pivot as the orbit; clockwise = the
 #                         model turns clockwise seen from +Z)
 #                         pan mode: zoom (clockwise = in)
 #                         (from the "E:<detents>" lines)
-#   left / right button -> fit / home view (on press; see BUTTON_ACTIONS),
-#                         from the "B:<n>,<state>" lines
+#   right button short -> toggle mode: orbit <-> pan (on release)
+#   left button short  -> home view (on release)
+#                         (buttons come from the "B:<n>,<state>" lines)
+#   (the sw column, the encoder push, is ignored)
+#   both buttons held  -> the device recalibrates with the stick where it is now
+#                         (the view doesn't move while both are held)
 #   BOOT on the device -> re-center (the "# calibrated center" line is picked up)
 
 import asyncio
@@ -52,13 +53,13 @@ MAX_UPDATE_HZ = 30          # view updates per second at most (more makes the mo
 PAN_PER_SEC = 0.3          # pan speed at full deflection, x eye-target distance
 SIGN_X = 1                  # flip to -1 if left/right is reversed
 SIGN_Y = -1                 # flip to -1 if up/down is reversed
-DEBOUNCE_SEC = 0.3          # ignore sw pushes closer together than this
-LONG_PRESS_SEC = 0.8        # hold sw this long to go to the home view
+LONG_PRESS_SEC = 0.8        # a button press this long or longer isn't a short press
 SPIN_DEG_PER_DETENT = 15.0  # Z-axis spin angle per encoder click
 SPIN_SIGN = 1               # flip to -1 if clockwise turns the model counterclockwise
 ZOOM_PER_DETENT = 1.1       # zoom factor per encoder click (pan mode)
 ZOOM_SIGN = 1               # flip to -1 if clockwise zooms out
-BUTTON_ACTIONS = {1: 'fit', 2: 'home'}  # 1 = left, 2 = right -> 'fit' or 'home'
+HOME_BUTTON = 1             # 1 = left, 2 = right: short press -> home view
+MODE_BUTTON = 2             # short press -> toggle mode: orbit <-> pan
 # -----------------------------------------------------------------------------
 
 EVENT_ID = 'JoyOrbitInput'
@@ -98,10 +99,9 @@ class SerialReader(threading.Thread):
         self.center = None
         self.boot_samples = []
         self.mode = 0
-        self.prev_sw = 1
-        self.last_push = 0.0
-        self.press_t = None       # when the current (debounced) press started
-        self.long_fired = False   # home already sent for the current press
+        self.btn = {1: 1, 2: 1}   # button states (0 = pressed)
+        self.press_t = {}         # button -> when its current press started
+        self.combo = {}           # button -> both were down during its current press
         self.latest_move = None   # (nx, ny, mode) of the newest sample
         self.move_pending = False # a move event is queued and not yet handled
         self.last_fire = 0.0      # when the last move event was fired
@@ -229,18 +229,14 @@ class SerialReader(threading.Thread):
                 n, state = (int(v) for v in line[2:].split(','))
             except ValueError:
                 return
-            action = BUTTON_ACTIONS.get(n)
-            if state == 0 and action:
-                log(action)
-                app.fireCustomEvent(EVENT_ID, json.dumps({'action': action}))
+            self.handle_button(n, state)
             return
         try:
-            x, y, sw = (int(v) for v in line.split(','))
+            x, y, _sw = (int(v) for v in line.split(','))  # sw (encoder push) unused
         except ValueError:
             return
-        self.handle_sw(sw)
-        if sw == 0:
-            return  # don't move the view while sw (encoder push) is held
+        if self.btn[1] == 0 and self.btn[2] == 0:
+            return  # both buttons = recalibrating on the device: hold the view
         if self.center is None:
             # Initial center = average of the first samples (device is at rest)
             self.boot_samples.append((x, y))
@@ -269,27 +265,33 @@ class SerialReader(threading.Thread):
             self.moving = moving
             app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'move'}))
 
-    def handle_sw(self, sw):
-        """sw is 0 while pressed. Short press toggles the mode on release;
-        holding for LONG_PRESS_SEC goes home once, and its release is ignored."""
+    def handle_button(self, n, state):
+        """A short press (released within LONG_PRESS_SEC) acts on release:
+        HOME_BUTTON goes home, MODE_BUTTON toggles orbit <-> pan. Presses
+        during which both buttons were down are the recalibrate combo (done
+        by the device) and do nothing here."""
+        if n not in self.btn:
+            return
         now = time.perf_counter()
-        if sw == 0 and self.prev_sw != 0:
-            if now - self.last_push >= DEBOUNCE_SEC:
-                self.last_push = now
-                self.press_t = now
-                self.long_fired = False
-        elif sw == 0 and self.press_t is not None and not self.long_fired:
-            if now - self.press_t >= LONG_PRESS_SEC:
-                self.long_fired = True
-                log('home')
-                app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'home'}))
-        elif sw != 0 and self.prev_sw == 0:
-            if self.press_t is not None and not self.long_fired:
-                self.mode = (self.mode + 1) % len(MODES)
-                log('mode: ' + MODES[self.mode])
-                self.send_mode()
-            self.press_t = None
-        self.prev_sw = sw
+        self.btn[n] = state
+        if state == 0:
+            self.press_t[n] = now
+            self.combo[n] = False
+        if self.btn[1] == 0 and self.btn[2] == 0:
+            for b in self.btn:
+                self.combo[b] = True
+        if state == 0:
+            return
+        t = self.press_t.pop(n, None)
+        if t is None or self.combo.get(n) or now - t >= LONG_PRESS_SEC:
+            return
+        if n == HOME_BUTTON:
+            log('home')
+            app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'home'}))
+        elif n == MODE_BUTTON:
+            self.mode = (self.mode + 1) % len(MODES)
+            log('mode: ' + MODES[self.mode])
+            self.send_mode()
 
     def send_mode(self, mode=None):
         """Tell the device the current mode ("M:<mode>\\n")."""
@@ -332,11 +334,6 @@ class InputHandler(adsk.core.CustomEventHandler):
                 vp = app.activeViewport
                 if vp:
                     vp.goHome()
-                return
-            if data['action'] == 'fit':
-                vp = app.activeViewport
-                if vp:
-                    vp.fit()
                 return
             if data['action'] == 'zoom':
                 vp = app.activeViewport
