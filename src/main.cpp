@@ -204,13 +204,10 @@ static int readAvg(int pin, int samples) {
   return sum / samples;
 }
 
-// Rotated 90 degrees clockwise (raw y grows downward): right -> down,
-// up -> right. The calibrated center goes through this too.
+// Raw orientation (no rotation). The calibrated center goes through this too.
 static void readXY(int& x, int& y, int samples = 8) {
-  const int rawX = readAvg(PIN_X, samples);
-  const int rawY = readAvg(PIN_Y, samples);
-  x = 4095 - rawY;
-  y = rawX;
+  x = readAvg(PIN_X, samples);
+  y = readAvg(PIN_Y, samples);
 }
 
 // The encoder's SW pulls the pin to GND while pressed, which already matches
