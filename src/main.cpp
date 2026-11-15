@@ -14,8 +14,8 @@
 //                  pull-ups would put 5V on the GPIOs)
 //   Encoder CLK -> D4 (GPIO6)
 //   Encoder DT  -> D5 (GPIO7)
-//   Encoder SW  -> D3 (GPIO5)  (this is the sw in the CSV; JoyOrbit ignores it,
-//                  so it may stay unconnected: the pull-up then reads 1)
+//   Encoder SW  -> D3 (GPIO5)  (this is the sw in the CSV; JoyOrbit pans/zooms
+//                  while it's held. Unconnected, the pull-up reads 1)
 //   Left  micro switch NO -> D10 (GPIO10), COM -> GND (NC unused)
 //   Right micro switch NO -> D7  (GPIO20), COM -> GND (NC unused)
 // The on-board BOOT switch recalibrates the center, and so does holding both

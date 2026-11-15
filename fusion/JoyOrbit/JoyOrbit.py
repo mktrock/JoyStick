@@ -2,21 +2,21 @@
 # XIAO ESP32C3 running this repo's firmware (x,y,sw CSV, 115200bps, USB serial).
 # Without USB it connects over BLE instead (Nordic UART Service, same lines).
 #
-#   stick              -> move the view in the current mode
-#                         (orbit pivots on the selection's center, if any)
-#   rotary encoder     -> orbit mode: spin around the model's Z axis like a
-#                         turntable (same pivot as the orbit; clockwise = the
-#                         model turns clockwise seen from +Z)
-#                         pan mode: zoom (clockwise = in)
+#   stick              -> orbit (pivots on the selection's center, if any)
+#   rotary encoder     -> spin around the model's Z axis like a turntable
+#                         (same pivot as the orbit; clockwise = the model
+#                         turns clockwise seen from +Z)
 #                         (from the "E:<detents>" lines)
-#   right switch short -> toggle mode: orbit <-> pan (on release)
 #   left switch short  -> snap to the nearest standard view (on release): the
 #                         nearest of the 6 faces and 8 iso corners, screen-up
 #                         to the nearest model axis; target and distance are kept
 #   left switch long   -> home view (as soon as it has been held LONG_PRESS_SEC;
 #                         nothing more on release)
 #                         (switches come from the "B:<n>,<state>" lines)
-#   (the sw column, the encoder push, is ignored)
+#   encoder push or stick push held -> the stick pans and the encoder zooms
+#                         (clockwise = in) while either is down (the encoder
+#                         push is the CSV's sw column, the stick push is
+#                         switch 3)
 #   both switches held -> the device recalibrates with the stick where it is now
 #                         (the view doesn't move while both are held)
 #   BOOT on the device -> re-center (the "# calibrated center" line is picked up)
@@ -60,15 +60,13 @@ SIGN_Y = -1                 # flip to -1 if up/down is reversed
 LONG_PRESS_SEC = 0.8        # a switch press this long or longer isn't a short press
 SPIN_DEG_PER_DETENT = 15.0  # Z-axis spin angle per encoder click
 SPIN_SIGN = 1               # flip to -1 if clockwise turns the model counterclockwise
-ZOOM_PER_DETENT = 1.1       # zoom factor per encoder click (pan mode)
+ZOOM_PER_DETENT = 1.1       # zoom factor per encoder click (with a push held)
 ZOOM_SIGN = 1               # flip to -1 if clockwise zooms out
 HOME_SWITCH = 1             # 1 = left, 2 = right: long press -> home view
-MODE_SWITCH = 2             # short press -> toggle mode: orbit <-> pan
 SNAP_SWITCH = 1             # short press -> snap to the nearest view
 # -----------------------------------------------------------------------------
 
 EVENT_ID = 'JoyOrbitInput'
-MODES = ('orbit', 'pan')
 NUS_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
 NUS_RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'  # add-in -> device
 NUS_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'  # device -> add-in
@@ -103,11 +101,12 @@ class SerialReader(threading.Thread):
         self.write = None         # bytes -> device, for the current connection
         self.center = None
         self.boot_samples = []
-        self.mode = 0
         self.switch = {1: 1, 2: 1}  # switch states (0 = pressed)
         self.press_t = {}           # switch -> when its current press started
         self.combo = {}             # switch -> its current press is used up (both were
                                     # down, or the long press already acted): no action on release
+        self.enc_sw = 1             # encoder push, from the CSV's sw column (0 = pressed)
+        self.stick_sw = 1           # stick push, switch 3 (0 = pressed)
         self.latest_move = None   # (nx, ny, mode) of the newest sample
         self.move_pending = False # a move event is queued and not yet handled
         self.last_fire = 0.0      # when the last move event was fired
@@ -226,7 +225,7 @@ class SerialReader(threading.Thread):
             except ValueError:
                 return
             if steps:
-                action = 'zoom' if MODES[self.mode] == 'pan' else 'spin'
+                action = 'zoom' if self.active_mode() == 'pan' else 'spin'
                 app.fireCustomEvent(EVENT_ID, json.dumps({'action': action, 'steps': steps}))
             return
         if line.startswith('B:'):
@@ -235,10 +234,13 @@ class SerialReader(threading.Thread):
                 n, state = (int(v) for v in line[2:].split(','))
             except ValueError:
                 return
-            self.handle_switch(n, state)
+            if n == 3:
+                self.stick_sw = state
+            else:
+                self.handle_switch(n, state)
             return
         try:
-            x, y, _sw = (int(v) for v in line.split(','))  # sw (encoder push) unused
+            x, y, self.enc_sw = (int(v) for v in line.split(','))
         except ValueError:
             return
         # The CSV keeps coming at 100 Hz while a switch is held, so the long
@@ -262,7 +264,7 @@ class SerialReader(threading.Thread):
         # sent at most MAX_UPDATE_HZ, and if the main thread falls behind only
         # the newest sample is kept instead of letting events queue up.
         moving = nx != 0.0 or ny != 0.0
-        self.latest_move = (nx, ny, MODES[self.mode])
+        self.latest_move = (nx, ny, self.active_mode())
         if not moving and not self.moving:
             return
         now = time.perf_counter()
@@ -273,6 +275,13 @@ class SerialReader(threading.Thread):
             self.last_fire = now
             self.moving = moving
             app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'move'}))
+
+    def active_mode(self):
+        """'pan' while the encoder push or the stick push is held (the stick
+        pans, the encoder zooms), otherwise 'orbit'."""
+        if self.enc_sw == 0 or self.stick_sw == 0:
+            return 'pan'
+        return 'orbit'
 
     def check_long_press(self):
         """HOME_SWITCH held for LONG_PRESS_SEC -> home, right away (once per
@@ -287,8 +296,8 @@ class SerialReader(threading.Thread):
 
     def handle_switch(self, n, state):
         """A short press (released within LONG_PRESS_SEC) acts on release:
-        SNAP_SWITCH snaps to the nearest view, MODE_SWITCH toggles orbit <->
-        pan. (HOME_SWITCH's long press is handled by check_long_press().)
+        SNAP_SWITCH snaps to the nearest view. (HOME_SWITCH's long press is
+        handled by check_long_press().)
         Presses during which both switches were down are the recalibrate combo
         (done by the device) and do nothing here."""
         if n not in self.switch:
@@ -309,15 +318,10 @@ class SerialReader(threading.Thread):
         if n == SNAP_SWITCH:
             log('snap')
             app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'snap'}))
-        elif n == MODE_SWITCH:
-            self.mode = (self.mode + 1) % len(MODES)
-            log('mode: ' + MODES[self.mode])
-            self.send_mode()
 
-    def send_mode(self, mode=None):
-        """Tell the device the current mode ("M:<mode>\\n")."""
-        if mode is None:
-            mode = MODES[self.mode]
+    def send_mode(self, mode='orbit'):
+        """Tell the device the mode ("M:<mode>\\n"): 'orbit' on connect, ''
+        when the add-in stops."""
         try:
             self.write(('M:' + mode + '\n').encode('ascii'))
         except Exception:
