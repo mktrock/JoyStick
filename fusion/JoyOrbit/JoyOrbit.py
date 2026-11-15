@@ -11,7 +11,8 @@
 #   left switch short  -> snap to the nearest standard view (on release): the
 #                         nearest of the 6 faces and 8 iso corners, screen-up
 #                         to the nearest model axis; target and distance are kept
-#   left switch long   -> home view (as soon as it has been held LONG_PRESS_SEC;
+#   right switch short -> fit the whole model in view, like F6 (on release)
+#   right switch long  -> home view (as soon as it has been held LONG_PRESS_SEC;
 #                         nothing more on release)
 #                         (switches come from the "B:<n>,<state>" lines)
 #   encoder push or stick push held -> the stick pans and the encoder does
@@ -62,8 +63,9 @@ SPIN_DEG_PER_DETENT = 15.0  # Z-axis spin angle per encoder click
 SPIN_SIGN = 1               # flip to -1 if clockwise turns the model counterclockwise
 STICK_ZOOM_PER_SEC = 2.0    # zoom factor per second with the stick fully left/right
 STICK_ZOOM_SIGN = 1         # flip to -1 if tilting right zooms out
-HOME_SWITCH = 1             # 1 = left, 2 = right: long press -> home view
+HOME_SWITCH = 2             # 1 = left, 2 = right: long press -> home view
 SNAP_SWITCH = 1             # short press -> snap to the nearest view
+FIT_SWITCH = 2              # short press -> fit the whole model in view (like F6)
 # -----------------------------------------------------------------------------
 
 EVENT_ID = 'JoyOrbitInput'
@@ -296,8 +298,8 @@ class SerialReader(threading.Thread):
 
     def handle_switch(self, n, state):
         """A short press (released within LONG_PRESS_SEC) acts on release:
-        SNAP_SWITCH snaps to the nearest view. (HOME_SWITCH's long press is
-        handled by check_long_press().)
+        SNAP_SWITCH snaps to the nearest view, FIT_SWITCH fits the model in
+        view. (HOME_SWITCH's long press is handled by check_long_press().)
         Presses during which both switches were down are the recalibrate combo
         (done by the device) and do nothing here."""
         if n not in self.switch:
@@ -318,6 +320,9 @@ class SerialReader(threading.Thread):
         if n == SNAP_SWITCH:
             log('snap')
             app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'snap'}))
+        elif n == FIT_SWITCH:
+            log('fit')
+            app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'fit'}))
 
     def send_mode(self, mode='orbit'):
         """Tell the device the mode ("M:<mode>\\n"): 'orbit' on connect, ''
@@ -359,6 +364,12 @@ class InputHandler(adsk.core.CustomEventHandler):
                 vp = app.activeViewport
                 if vp:
                     vp.goHome()
+                return
+            if data['action'] == 'fit':
+                vp = app.activeViewport
+                if vp:
+                    vp.fit()
+                    self.pivot = None
                 return
             if data['action'] == 'snap':
                 vp = app.activeViewport
