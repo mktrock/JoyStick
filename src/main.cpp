@@ -5,7 +5,11 @@
 //   KS0008 VCC -> 3V3  (do NOT use 5V: output would exceed the ESP32-C3 ADC range)
 //   KS0008 Y   -> D1 (GPIO3, ADC1)
 //   KS0008 X   -> D2 (GPIO4, ADC1)
-//   (KS0008 SW is not used and stays unconnected.)
+//   KS0008 SW  -> D8 (GPIO8)  (the stick push, printed B; sent as switch 3.
+//                  The module drives it HIGH while pressed and pulls it LOW
+//                  otherwise. GPIO8 is a strapping pin that must be HIGH for
+//                  the BOOT + RESET download mode, so unplug this wire for
+//                  that; USB uploads don't need it)
 //   Encoder GND -> GND, + -> 3V3 (shared with KS0008; not 5V, the module's
 //                  pull-ups would put 5V on the GPIOs)
 //   Encoder CLK -> D4 (GPIO6)
@@ -20,7 +24,8 @@
 //
 // The rotary encoder goes out on its own line, "E:<detents>", only when it
 // turns: detents since the last E line (+ = clockwise). The switches go out as
-// "B:<n>,<state>" (n = 1 left, 2 right; state 0 = pressed, like sw) when
+// "B:<n>,<state>" (n = 1 left, 2 right, 3 stick push; state 0 = pressed,
+// like sw) when
 // they change.
 // The x,y,sw lines are unchanged.
 //
@@ -43,7 +48,9 @@ constexpr int PIN_SW   = D3;
 constexpr int PIN_BOOT = 9;  // on-board BOOT switch, LOW while pressed
 constexpr int PIN_ENC_A  = D4;   // CLK
 constexpr int PIN_ENC_B  = D5;   // DT
-constexpr int PIN_SWITCH[] = {D10, D7};  // left (1), right (2)
+constexpr int PIN_SWITCH[] = {D10, D7, D8};  // left (1), right (2), stick push (3)
+// Pin level while pressed: the micro switches pull to GND, the KS0008 drives HIGH.
+constexpr int SWITCH_PRESSED[] = {LOW, LOW, HIGH};
 
 int centerX = 2048;
 int centerY = 2048;
@@ -88,13 +95,22 @@ static int32_t encDetents() {
 
 // ---- Switches ------------------------------------------------------------------
 // Micro switches between the pin and GND (internal pull-up: LOW while
-// pressed). They bounce, so a new level counts only after it has held for
-// SWITCH_DEBOUNCE_MS.
+// pressed), and the KS0008 push, which drives HIGH while pressed (internal
+// pull-down, alongside the module's own). They bounce, so a new level counts
+// only after it has held for SWITCH_DEBOUNCE_MS.
 constexpr int NUM_SWITCH = sizeof(PIN_SWITCH) / sizeof(PIN_SWITCH[0]);
+static_assert(sizeof(SWITCH_PRESSED) / sizeof(SWITCH_PRESSED[0]) == NUM_SWITCH,
+              "one SWITCH_PRESSED level per switch");
 constexpr uint32_t SWITCH_DEBOUNCE_MS = 20;
 
 static void setupSwitches() {
-  for (int pin : PIN_SWITCH) pinMode(pin, INPUT_PULLUP);
+  for (int i = 0; i < NUM_SWITCH; i++)
+    pinMode(PIN_SWITCH[i], SWITCH_PRESSED[i] == LOW ? INPUT_PULLUP : INPUT_PULLDOWN);
+}
+
+// LOW while pressed, HIGH while released, whichever way the pin goes.
+static int readSwitch(int i) {
+  return digitalRead(PIN_SWITCH[i]) == SWITCH_PRESSED[i] ? LOW : HIGH;
 }
 
 // ---- BLE (Nordic UART Service) ----------------------------------------------
@@ -233,12 +249,13 @@ constexpr uint32_t CAL_HOLD_MS = 1000;
 // "B:<n>,<state>" for each debounced change (state 0 = pressed, like sw).
 // Both held for CAL_HOLD_MS -> calibrate().
 static void pollSwitches() {
-  static int stable[NUM_SWITCH] = {HIGH, HIGH};  // last level sent
-  static int last[NUM_SWITCH] = {HIGH, HIGH};    // last level read
+  static_assert(NUM_SWITCH == 3, "update the initializers below");
+  static int stable[NUM_SWITCH] = {HIGH, HIGH, HIGH};  // last level sent
+  static int last[NUM_SWITCH] = {HIGH, HIGH, HIGH};    // last level read
   static uint32_t changedMs[NUM_SWITCH] = {};
   const uint32_t now = millis();
   for (int i = 0; i < NUM_SWITCH; i++) {
-    const int v = digitalRead(PIN_SWITCH[i]);
+    const int v = readSwitch(i);
     if (v != last[i]) {
       last[i] = v;
       changedMs[i] = now;
