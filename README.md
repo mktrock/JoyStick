@@ -53,7 +53,8 @@ PlatformIO を使います。VS Code の PlatformIO 拡張の Build/Upload/Monit
 |---|---|
 | スティックを倒す | 今のモードでビューを動かす |
 | 右スイッチを短く押す | モードを オービット ⇔ パン で切り替える(離したとき。今のモードはシリアルに `# mode: orbit` のように出る) |
-| 左スイッチを短く押す | ビューをホームに戻す(離したとき) |
+| 左スイッチを短く押す | 最寄りの標準ビュー(6 面と 8 隅のアイソメ)に合わせる(離したとき) |
+| 左スイッチを長押し | ビューをホームに戻す(`LONG_PRESS_SEC` 押し続けた時点で。離すのを待たない) |
 | エンコーダを回す | オービットモード: モデルの Z 軸の周りにビューを回す(ターンテーブル)<br>パンモード: ズーム(時計回りで拡大) |
 | 左右のスイッチを同時に長押し(1 秒) | 今のスティック位置を中央として校正し直す(押している間はビューを動かさない) |
 | BOOT スイッチ | 今のスティック位置を中央として校正し直す |
@@ -66,4 +67,4 @@ PlatformIO を使います。VS Code の PlatformIO 拡張の Build/Upload/Monit
 
 - 接続状況は Fusion の **テキストコマンド** ウィンドウに `[JoyOrbit] connected: COM8` のように出ます。
 - アドイン実行中はシリアルポートを占有するので、`pio device monitor` や書き込みの前にアドインを停止してください。
-- 速度・不感帯・向きの反転は [JoyOrbit.py](fusion/JoyOrbit/JoyOrbit.py) 冒頭の設定(`ORBIT_DEG_PER_SEC`、`PAN_PER_SEC`、`DEADZONE`、`SIGN_X`/`SIGN_Y`、`PORT`)で変えられます。スイッチの割り当ては `MODE_SWITCH`・`HOME_SWITCH`(1 が左、2 が右)で入れ替えられます。ズームの 1 クリックの倍率は `ZOOM_PER_DETENT`、向きは `ZOOM_SIGN` です。エンコーダの押し込み(SW)は使いません。同時長押しの時間はファームウェアの `CAL_HOLD_MS` です。
+- 速度・不感帯・向きの反転は [JoyOrbit.py](fusion/JoyOrbit/JoyOrbit.py) 冒頭の設定(`ORBIT_DEG_PER_SEC`、`PAN_PER_SEC`、`DEADZONE`、`SIGN_X`/`SIGN_Y`、`PORT`)で変えられます。スイッチの割り当ては `MODE_SWITCH`・`SNAP_SWITCH`・`HOME_SWITCH`(1 が左、2 が右)で入れ替えられます。長押しとみなす時間は `LONG_PRESS_SEC` です。ズームの 1 クリックの倍率は `ZOOM_PER_DETENT`、向きは `ZOOM_SIGN` です。エンコーダの押し込み(SW)は使いません。同時長押しの時間はファームウェアの `CAL_HOLD_MS` です。

@@ -10,7 +10,11 @@
 #                         pan mode: zoom (clockwise = in)
 #                         (from the "E:<detents>" lines)
 #   right switch short -> toggle mode: orbit <-> pan (on release)
-#   left switch short  -> home view (on release)
+#   left switch short  -> snap to the nearest standard view (on release): the
+#                         nearest of the 6 faces and 8 iso corners, screen-up
+#                         to the nearest model axis; target and distance are kept
+#   left switch long   -> home view (as soon as it has been held LONG_PRESS_SEC;
+#                         nothing more on release)
 #                         (switches come from the "B:<n>,<state>" lines)
 #   (the sw column, the encoder push, is ignored)
 #   both switches held -> the device recalibrates with the stick where it is now
@@ -58,8 +62,9 @@ SPIN_DEG_PER_DETENT = 15.0  # Z-axis spin angle per encoder click
 SPIN_SIGN = 1               # flip to -1 if clockwise turns the model counterclockwise
 ZOOM_PER_DETENT = 1.1       # zoom factor per encoder click (pan mode)
 ZOOM_SIGN = 1               # flip to -1 if clockwise zooms out
-HOME_SWITCH = 1             # 1 = left, 2 = right: short press -> home view
+HOME_SWITCH = 1             # 1 = left, 2 = right: long press -> home view
 MODE_SWITCH = 2             # short press -> toggle mode: orbit <-> pan
+SNAP_SWITCH = 1             # short press -> snap to the nearest view
 # -----------------------------------------------------------------------------
 
 EVENT_ID = 'JoyOrbitInput'
@@ -101,7 +106,8 @@ class SerialReader(threading.Thread):
         self.mode = 0
         self.switch = {1: 1, 2: 1}  # switch states (0 = pressed)
         self.press_t = {}           # switch -> when its current press started
-        self.combo = {}             # switch -> both were down during its current press
+        self.combo = {}             # switch -> its current press is used up (both were
+                                    # down, or the long press already acted): no action on release
         self.latest_move = None   # (nx, ny, mode) of the newest sample
         self.move_pending = False # a move event is queued and not yet handled
         self.last_fire = 0.0      # when the last move event was fired
@@ -235,6 +241,9 @@ class SerialReader(threading.Thread):
             x, y, _sw = (int(v) for v in line.split(','))  # sw (encoder push) unused
         except ValueError:
             return
+        # The CSV keeps coming at 100 Hz while a switch is held, so the long
+        # press is timed here instead of waiting for the release.
+        self.check_long_press()
         if self.switch[1] == 0 and self.switch[2] == 0:
             return  # both switches = recalibrating on the device: hold the view
         if self.center is None:
@@ -265,11 +274,23 @@ class SerialReader(threading.Thread):
             self.moving = moving
             app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'move'}))
 
+    def check_long_press(self):
+        """HOME_SWITCH held for LONG_PRESS_SEC -> home, right away (once per
+        press; the release then does nothing)."""
+        n = HOME_SWITCH
+        t = self.press_t.get(n)
+        if (self.switch[n] == 0 and t is not None and not self.combo.get(n)
+                and time.perf_counter() - t >= LONG_PRESS_SEC):
+            self.combo[n] = True
+            log('home')
+            app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'home'}))
+
     def handle_switch(self, n, state):
         """A short press (released within LONG_PRESS_SEC) acts on release:
-        HOME_SWITCH goes home, MODE_SWITCH toggles orbit <-> pan. Presses
-        during which both switches were down are the recalibrate combo (done
-        by the device) and do nothing here."""
+        SNAP_SWITCH snaps to the nearest view, MODE_SWITCH toggles orbit <->
+        pan. (HOME_SWITCH's long press is handled by check_long_press().)
+        Presses during which both switches were down are the recalibrate combo
+        (done by the device) and do nothing here."""
         if n not in self.switch:
             return
         now = time.perf_counter()
@@ -285,9 +306,9 @@ class SerialReader(threading.Thread):
         t = self.press_t.pop(n, None)
         if t is None or self.combo.get(n) or now - t >= LONG_PRESS_SEC:
             return
-        if n == HOME_SWITCH:
-            log('home')
-            app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'home'}))
+        if n == SNAP_SWITCH:
+            log('snap')
+            app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'snap'}))
         elif n == MODE_SWITCH:
             self.mode = (self.mode + 1) % len(MODES)
             log('mode: ' + MODES[self.mode])
@@ -334,6 +355,12 @@ class InputHandler(adsk.core.CustomEventHandler):
                 vp = app.activeViewport
                 if vp:
                     vp.goHome()
+                return
+            if data['action'] == 'snap':
+                vp = app.activeViewport
+                if vp:
+                    snap_view(vp)
+                    self.pivot = None
                 return
             if data['action'] == 'zoom':
                 vp = app.activeViewport
@@ -437,6 +464,49 @@ def zoom(vp, factor):
     if cam.cameraType == adsk.core.CameraTypes.OrthographicCameraType:
         cam.viewExtents = cam.viewExtents * factor
     cam.isSmoothTransition = False
+    vp.camera = cam
+
+
+AXES = ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))
+_C = 1 / math.sqrt(3)
+SNAP_DIRS = AXES + tuple((sx * _C, sy * _C, sz * _C)
+                         for sx in (1, -1) for sy in (1, -1) for sz in (1, -1))
+
+
+def _dot(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def snap_view(vp):
+    """Turn the camera to the nearest of the 6 faces and 8 iso corners
+    (SNAP_DIRS, in model space), keeping the target and the distance. Screen
+    up goes to the model axis nearest the current up (projected onto the
+    screen, so iso views get the usual tilted axis)."""
+    cam = vp.camera
+    target = cam.target
+    v = cam.eye.vectorTo(target)  # viewing direction
+    dist = v.length
+    if dist == 0:
+        return
+    v = (v.x / dist, v.y / dist, v.z / dist)
+    d = max(SNAP_DIRS, key=lambda c: _dot(c, v))
+    cu = cam.upVector
+    cu = (cu.x, cu.y, cu.z)
+    up = None
+    for a in AXES:
+        k = _dot(a, d)
+        p = (a[0] - k * d[0], a[1] - k * d[1], a[2] - k * d[2])  # a, perpendicular to d
+        n = math.sqrt(_dot(p, p))
+        if n < 1e-6:
+            continue  # a is the viewing axis itself
+        p = (p[0] / n, p[1] / n, p[2] / n)
+        if up is None or _dot(p, cu) > _dot(up, cu):
+            up = p
+    eye = target.copy()
+    eye.translateBy(adsk.core.Vector3D.create(-d[0] * dist, -d[1] * dist, -d[2] * dist))
+    cam.eye = eye
+    cam.upVector = adsk.core.Vector3D.create(*up)
+    cam.isSmoothTransition = True
     vp.camera = cam
 
 
