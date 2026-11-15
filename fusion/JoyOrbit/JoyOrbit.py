@@ -2,7 +2,8 @@
 # XIAO ESP32C3 running this repo's firmware (x,y,sw CSV, 115200bps, USB serial).
 # Without USB it connects over BLE instead (Nordic UART Service, same lines).
 #
-#   stick              -> orbit (pivots on the selection's center, if any)
+#   stick up/down      -> orbit up/down (pivots on the selection's center, if any)
+#   stick left/right   -> zoom (right = in)
 #   rotary encoder     -> spin around the model's Z axis like a turntable
 #                         (same pivot as the orbit; clockwise = the model
 #                         turns clockwise seen from +Z)
@@ -13,10 +14,9 @@
 #   left switch long   -> home view (as soon as it has been held LONG_PRESS_SEC;
 #                         nothing more on release)
 #                         (switches come from the "B:<n>,<state>" lines)
-#   encoder push or stick push held -> the stick pans and the encoder zooms
-#                         (clockwise = in) while either is down (the encoder
-#                         push is the CSV's sw column, the stick push is
-#                         switch 3)
+#   encoder push or stick push held -> the stick pans and the encoder does
+#                         nothing while either is down (the encoder push is
+#                         the CSV's sw column, the stick push is switch 3)
 #   both switches held -> the device recalibrates with the stick where it is now
 #                         (the view doesn't move while both are held)
 #   BOOT on the device -> re-center (the "# calibrated center" line is picked up)
@@ -60,8 +60,8 @@ SIGN_Y = -1                 # flip to -1 if up/down is reversed
 LONG_PRESS_SEC = 0.8        # a switch press this long or longer isn't a short press
 SPIN_DEG_PER_DETENT = 15.0  # Z-axis spin angle per encoder click
 SPIN_SIGN = 1               # flip to -1 if clockwise turns the model counterclockwise
-ZOOM_PER_DETENT = 1.1       # zoom factor per encoder click (with a push held)
-ZOOM_SIGN = 1               # flip to -1 if clockwise zooms out
+STICK_ZOOM_PER_SEC = 2.0    # zoom factor per second with the stick fully left/right
+STICK_ZOOM_SIGN = 1         # flip to -1 if tilting right zooms out
 HOME_SWITCH = 1             # 1 = left, 2 = right: long press -> home view
 SNAP_SWITCH = 1             # short press -> snap to the nearest view
 # -----------------------------------------------------------------------------
@@ -224,9 +224,9 @@ class SerialReader(threading.Thread):
                 steps = int(line[2:])
             except ValueError:
                 return
-            if steps:
-                action = 'zoom' if self.active_mode() == 'pan' else 'spin'
-                app.fireCustomEvent(EVENT_ID, json.dumps({'action': action, 'steps': steps}))
+            # Ignored while a push is held
+            if steps and self.active_mode() == 'orbit':
+                app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'spin', 'steps': steps}))
             return
         if line.startswith('B:'):
             # "B:<n>,<state>" (state 0 = pressed; the device debounces)
@@ -278,7 +278,7 @@ class SerialReader(threading.Thread):
 
     def active_mode(self):
         """'pan' while the encoder push or the stick push is held (the stick
-        pans, the encoder zooms), otherwise 'orbit'."""
+        pans, the encoder is ignored), otherwise 'orbit'."""
         if self.enc_sw == 0 or self.stick_sw == 0:
             return 'pan'
         return 'orbit'
@@ -366,12 +366,6 @@ class InputHandler(adsk.core.CustomEventHandler):
                     snap_view(vp)
                     self.pivot = None
                 return
-            if data['action'] == 'zoom':
-                vp = app.activeViewport
-                if vp:
-                    zoom(vp, ZOOM_PER_DETENT ** (-data['steps'] * ZOOM_SIGN))
-                    vp.refresh()
-                return
             if data['action'] == 'spin':
                 vp = app.activeViewport
                 if vp:
@@ -402,9 +396,13 @@ class InputHandler(adsk.core.CustomEventHandler):
             if mode == 'pan':
                 pan(vp, nx, ny, dt)
             else:
-                if self.pivot is None:
-                    self.pivot = selection_center() or vp.camera.target
-                orbit(vp, nx, ny, dt, self.pivot)
+                # Up/down orbits (pitch only), left/right zooms (right = in)
+                if ny != 0.0:
+                    if self.pivot is None:
+                        self.pivot = selection_center() or vp.camera.target
+                    orbit(vp, 0.0, ny, dt, self.pivot)
+                if nx != 0.0:
+                    zoom(vp, STICK_ZOOM_PER_SEC ** (-nx * dt * STICK_ZOOM_SIGN))
             # Setting vp.camera alone doesn't redraw until the next mouse event
             vp.refresh()
         except Exception:
