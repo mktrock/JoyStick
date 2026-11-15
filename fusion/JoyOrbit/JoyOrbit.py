@@ -9,11 +9,11 @@
 #                         model turns clockwise seen from +Z)
 #                         pan mode: zoom (clockwise = in)
 #                         (from the "E:<detents>" lines)
-#   right button short -> toggle mode: orbit <-> pan (on release)
-#   left button short  -> home view (on release)
-#                         (buttons come from the "B:<n>,<state>" lines)
+#   right switch short -> toggle mode: orbit <-> pan (on release)
+#   left switch short  -> home view (on release)
+#                         (switches come from the "B:<n>,<state>" lines)
 #   (the sw column, the encoder push, is ignored)
-#   both buttons held  -> the device recalibrates with the stick where it is now
+#   both switches held -> the device recalibrates with the stick where it is now
 #                         (the view doesn't move while both are held)
 #   BOOT on the device -> re-center (the "# calibrated center" line is picked up)
 
@@ -53,13 +53,13 @@ MAX_UPDATE_HZ = 30          # view updates per second at most (more makes the mo
 PAN_PER_SEC = 0.15         # pan speed at full deflection, x eye-target distance
 SIGN_X = 1                  # flip to -1 if left/right is reversed
 SIGN_Y = -1                 # flip to -1 if up/down is reversed
-LONG_PRESS_SEC = 0.8        # a button press this long or longer isn't a short press
+LONG_PRESS_SEC = 0.8        # a switch press this long or longer isn't a short press
 SPIN_DEG_PER_DETENT = 15.0  # Z-axis spin angle per encoder click
 SPIN_SIGN = 1               # flip to -1 if clockwise turns the model counterclockwise
 ZOOM_PER_DETENT = 1.1       # zoom factor per encoder click (pan mode)
 ZOOM_SIGN = 1               # flip to -1 if clockwise zooms out
-HOME_BUTTON = 1             # 1 = left, 2 = right: short press -> home view
-MODE_BUTTON = 2             # short press -> toggle mode: orbit <-> pan
+HOME_SWITCH = 1             # 1 = left, 2 = right: short press -> home view
+MODE_SWITCH = 2             # short press -> toggle mode: orbit <-> pan
 # -----------------------------------------------------------------------------
 
 EVENT_ID = 'JoyOrbitInput'
@@ -99,9 +99,9 @@ class SerialReader(threading.Thread):
         self.center = None
         self.boot_samples = []
         self.mode = 0
-        self.btn = {1: 1, 2: 1}   # button states (0 = pressed)
-        self.press_t = {}         # button -> when its current press started
-        self.combo = {}           # button -> both were down during its current press
+        self.switch = {1: 1, 2: 1}  # switch states (0 = pressed)
+        self.press_t = {}           # switch -> when its current press started
+        self.combo = {}             # switch -> both were down during its current press
         self.latest_move = None   # (nx, ny, mode) of the newest sample
         self.move_pending = False # a move event is queued and not yet handled
         self.last_fire = 0.0      # when the last move event was fired
@@ -229,14 +229,14 @@ class SerialReader(threading.Thread):
                 n, state = (int(v) for v in line[2:].split(','))
             except ValueError:
                 return
-            self.handle_button(n, state)
+            self.handle_switch(n, state)
             return
         try:
             x, y, _sw = (int(v) for v in line.split(','))  # sw (encoder push) unused
         except ValueError:
             return
-        if self.btn[1] == 0 and self.btn[2] == 0:
-            return  # both buttons = recalibrating on the device: hold the view
+        if self.switch[1] == 0 and self.switch[2] == 0:
+            return  # both switches = recalibrating on the device: hold the view
         if self.center is None:
             # Initial center = average of the first samples (device is at rest)
             self.boot_samples.append((x, y))
@@ -265,30 +265,30 @@ class SerialReader(threading.Thread):
             self.moving = moving
             app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'move'}))
 
-    def handle_button(self, n, state):
+    def handle_switch(self, n, state):
         """A short press (released within LONG_PRESS_SEC) acts on release:
-        HOME_BUTTON goes home, MODE_BUTTON toggles orbit <-> pan. Presses
-        during which both buttons were down are the recalibrate combo (done
+        HOME_SWITCH goes home, MODE_SWITCH toggles orbit <-> pan. Presses
+        during which both switches were down are the recalibrate combo (done
         by the device) and do nothing here."""
-        if n not in self.btn:
+        if n not in self.switch:
             return
         now = time.perf_counter()
-        self.btn[n] = state
+        self.switch[n] = state
         if state == 0:
             self.press_t[n] = now
             self.combo[n] = False
-        if self.btn[1] == 0 and self.btn[2] == 0:
-            for b in self.btn:
+        if self.switch[1] == 0 and self.switch[2] == 0:
+            for b in self.switch:
                 self.combo[b] = True
         if state == 0:
             return
         t = self.press_t.pop(n, None)
         if t is None or self.combo.get(n) or now - t >= LONG_PRESS_SEC:
             return
-        if n == HOME_BUTTON:
+        if n == HOME_SWITCH:
             log('home')
             app.fireCustomEvent(EVENT_ID, json.dumps({'action': 'home'}))
-        elif n == MODE_BUTTON:
+        elif n == MODE_SWITCH:
             self.mode = (self.mode + 1) % len(MODES)
             log('mode: ' + MODES[self.mode])
             self.send_mode()

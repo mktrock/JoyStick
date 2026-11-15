@@ -12,20 +12,20 @@
 //   Encoder DT  -> D5 (GPIO7)
 //   Encoder SW  -> D3 (GPIO5)  (this is the sw in the CSV; JoyOrbit ignores it,
 //                  so it may stay unconnected: the pull-up then reads 1)
-//   Left  button (micro switch) NO -> D10 (GPIO10), COM -> GND (NC unused)
-//   Right button (micro switch) NO -> D7  (GPIO20), COM -> GND (NC unused)
-// The on-board BOOT button recalibrates the center, and so does holding both
-// buttons for CAL_HOLD_MS (the stick's position at that moment becomes the
+//   Left  micro switch NO -> D10 (GPIO10), COM -> GND (NC unused)
+//   Right micro switch NO -> D7  (GPIO20), COM -> GND (NC unused)
+// The on-board BOOT switch recalibrates the center, and so does holding both
+// switches for CAL_HOLD_MS (the stick's position at that moment becomes the
 // center).
 //
 // The rotary encoder goes out on its own line, "E:<detents>", only when it
-// turns: detents since the last E line (+ = clockwise). The buttons go out as
+// turns: detents since the last E line (+ = clockwise). The switches go out as
 // "B:<n>,<state>" (n = 1 left, 2 right; state 0 = pressed, like sw) when
 // they change.
 // The x,y,sw lines are unchanged.
 //
 // Built with -DSIMULATE (env xiao-esp32c3-sim), no wiring is needed: x,y go
-// round in circles and the BOOT button acts as sw.
+// round in circles and the BOOT switch acts as sw.
 //
 // Output goes to USB serial. Built with -DENABLE_BLE (env xiao-esp32c3-ble),
 // it also goes, while a central is connected, to BLE (Nordic UART Service,
@@ -40,10 +40,10 @@
 constexpr int PIN_X    = A2;
 constexpr int PIN_Y    = A1;
 constexpr int PIN_SW   = D3;
-constexpr int PIN_BOOT = 9;  // on-board BOOT button, LOW while pressed
+constexpr int PIN_BOOT = 9;  // on-board BOOT switch, LOW while pressed
 constexpr int PIN_ENC_A  = D4;   // CLK
 constexpr int PIN_ENC_B  = D5;   // DT
-constexpr int PIN_BTN[] = {D10, D7};  // left (1), right (2)
+constexpr int PIN_SWITCH[] = {D10, D7};  // left (1), right (2)
 
 int centerX = 2048;
 int centerY = 2048;
@@ -86,15 +86,15 @@ static int32_t encDetents() {
                     : -((-s - half + ENC_STEPS_PER_DETENT - 1) / ENC_STEPS_PER_DETENT);
 }
 
-// ---- Buttons ------------------------------------------------------------------
+// ---- Switches ------------------------------------------------------------------
 // Micro switches between the pin and GND (internal pull-up: LOW while
 // pressed). They bounce, so a new level counts only after it has held for
-// BTN_DEBOUNCE_MS.
-constexpr int NUM_BTN = sizeof(PIN_BTN) / sizeof(PIN_BTN[0]);
-constexpr uint32_t BTN_DEBOUNCE_MS = 20;
+// SWITCH_DEBOUNCE_MS.
+constexpr int NUM_SWITCH = sizeof(PIN_SWITCH) / sizeof(PIN_SWITCH[0]);
+constexpr uint32_t SWITCH_DEBOUNCE_MS = 20;
 
-static void setupButtons() {
-  for (int pin : PIN_BTN) pinMode(pin, INPUT_PULLUP);
+static void setupSwitches() {
+  for (int pin : PIN_SWITCH) pinMode(pin, INPUT_PULLUP);
 }
 
 // ---- BLE (Nordic UART Service) ----------------------------------------------
@@ -227,22 +227,22 @@ static void calibrate() {
   emit(buf);
 }
 
-// Hold both buttons this long to recalibrate (once per hold).
+// Hold both switches this long to recalibrate (once per hold).
 constexpr uint32_t CAL_HOLD_MS = 1000;
 
 // "B:<n>,<state>" for each debounced change (state 0 = pressed, like sw).
 // Both held for CAL_HOLD_MS -> calibrate().
-static void pollButtons() {
-  static int stable[NUM_BTN] = {HIGH, HIGH};  // last level sent
-  static int last[NUM_BTN] = {HIGH, HIGH};    // last level read
-  static uint32_t changedMs[NUM_BTN] = {};
+static void pollSwitches() {
+  static int stable[NUM_SWITCH] = {HIGH, HIGH};  // last level sent
+  static int last[NUM_SWITCH] = {HIGH, HIGH};    // last level read
+  static uint32_t changedMs[NUM_SWITCH] = {};
   const uint32_t now = millis();
-  for (int i = 0; i < NUM_BTN; i++) {
-    const int v = digitalRead(PIN_BTN[i]);
+  for (int i = 0; i < NUM_SWITCH; i++) {
+    const int v = digitalRead(PIN_SWITCH[i]);
     if (v != last[i]) {
       last[i] = v;
       changedMs[i] = now;
-    } else if (v != stable[i] && now - changedMs[i] >= BTN_DEBOUNCE_MS) {
+    } else if (v != stable[i] && now - changedMs[i] >= SWITCH_DEBOUNCE_MS) {
       stable[i] = v;
       char buf[16];
       snprintf(buf, sizeof(buf), "B:%d,%d\n", i + 1, v);
@@ -279,7 +279,7 @@ void setup() {
   analogSetAttenuation(ADC_11db);
 
   setupEncoder();
-  setupButtons();
+  setupSwitches();
 
 #ifdef ENABLE_BLE
   setupBle();
@@ -298,7 +298,7 @@ void loop() {
   if ((int32_t)(millis() - nextMs) > 0) nextMs = millis();  // fell behind: don't burst
 
 #ifndef SIMULATE
-  // BOOT button: recalibrate on press
+  // BOOT switch: recalibrate on press
   static int prevBoot = HIGH;
   const int boot = digitalRead(PIN_BOOT);
   if (prevBoot == HIGH && boot == LOW) calibrate();
@@ -327,5 +327,5 @@ void loop() {
     sentDetents = detents;
   }
 
-  pollButtons();
+  pollSwitches();
 }
