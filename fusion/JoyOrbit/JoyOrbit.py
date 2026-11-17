@@ -50,12 +50,12 @@ USB_VIDS = (0x303A,)        # Espressif USB Serial/JTAG (XIAO ESP32C3)
 USE_BLE = True              # fall back to BLE when no USB port is found
 BLE_NAME = 'JoyStick-XIAO'
 BLE_SCAN_SEC = 5.0          # scan this long per attempt
-DEADZONE = 0             # raw counts from center (radius, 0-4095 scale) that are ignored
+DEADZONE = 80              # raw counts from center (radius, 0-4095 scale) that are ignored
 EXPO = 1.5                # response curve exponent: 1 = linear, larger = finer near center
 ORBIT_DEG_PER_SEC = 90.0    # orbit speed at full deflection
 ORBIT_AROUND_SELECTION = True  # orbit around the selection's center when something is selected
 MAX_UPDATE_HZ = 30          # view updates per second at most (more makes the mouse sluggish)
-PAN_PER_SEC = 0.15         # pan speed at full deflection, x eye-target distance
+PAN_PER_SEC = 0.075        # pan speed at full deflection, x eye-target distance
 SIGN_X = 1                  # flip to -1 if left/right is reversed
 SIGN_Y = -1                 # flip to -1 if up/down is reversed
 LONG_PRESS_SEC = 0.8        # a switch press this long or longer isn't a short press
